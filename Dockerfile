@@ -16,6 +16,7 @@ COPY assets ./assets
 ENV NODE_ENV=production
 ENV OUGI_SITE_HOST=0.0.0.0
 ENV OUGI_FORCE_HTTPS=1
+# Railway injects PORT at runtime
 
 EXPOSE 10000
 CMD ["node", "scripts/start-hosted.js"]

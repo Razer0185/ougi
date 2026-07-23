@@ -15,11 +15,11 @@ const sec = require('./security');
 
 const PUBLIC = path.join(__dirname, 'public');
 const PORT = Number(process.env.PORT || process.env.OUGI_SITE_PORT || 5050);
-const HOST =
-  process.env.OUGI_SITE_HOST ||
-  (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1');
+// Always bind all interfaces on hosted platforms (Railway sets PORT)
+const HOST = process.env.OUGI_SITE_HOST || '0.0.0.0';
 const TRUSTED_ORIGIN =
-  process.env.OUGI_SITE_ORIGIN || `http://127.0.0.1:${process.env.OUGI_SITE_PORT || 5050}`;
+  process.env.OUGI_SITE_ORIGIN ||
+  `http://127.0.0.1:${process.env.OUGI_SITE_PORT || PORT || 5050}`;
 
 function mime(filePath) {
   if (filePath.endsWith('.html')) return 'text/html; charset=utf-8';
