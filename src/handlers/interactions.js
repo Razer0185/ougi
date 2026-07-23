@@ -179,9 +179,9 @@ async function handleButton(interaction) {
   if (id.startsWith('iface:apply:')) {
     if (!(await requireAdmin(interaction))) return;
     const themeId = id.split(':')[2];
+    const { applyThemeAndSyncRoles } = require('../features/theme-roles');
+    await applyThemeAndSyncRoles(interaction.guild, themeId);
     const cfg = loadGuild(interaction.guild.id);
-    cfg.theme = themeId;
-    saveGuild(interaction.guild.id, cfg);
     if (cfg.panelChannelId && cfg.panelMessageId) {
       const ch = interaction.guild.channels.cache.get(cfg.panelChannelId);
       const msg = ch && (await ch.messages.fetch(cfg.panelMessageId).catch(() => null));
@@ -194,7 +194,13 @@ async function handleButton(interaction) {
     }
     const t = INTERFACE_TEMPLATES.find((x) => x.id === themeId);
     return interaction.reply({
-      embeds: [successEmbed(interaction.guild.id, 'Interface Applied', `Now using **${t?.label || themeId}**`)],
+      embeds: [
+        successEmbed(
+          interaction.guild.id,
+          'Interface Applied',
+          `Now using **${t?.label || themeId}**\nTheme admin roles updated (★ marks the active color).`
+        ),
+      ],
       ephemeral: true,
     });
   }
@@ -717,9 +723,9 @@ async function handleStringSelect(interaction) {
   if (interaction.customId === 'settings:theme') {
     if (!(await requireAdmin(interaction))) return;
     const theme = interaction.values[0];
+    const { applyThemeAndSyncRoles } = require('../features/theme-roles');
+    await applyThemeAndSyncRoles(interaction.guild, theme);
     const cfg = loadGuild(interaction.guild.id);
-    cfg.theme = theme;
-    saveGuild(interaction.guild.id, cfg);
     if (cfg.panelChannelId && cfg.panelMessageId) {
       const ch = interaction.guild.channels.cache.get(cfg.panelChannelId);
       const msg = ch && (await ch.messages.fetch(cfg.panelMessageId).catch(() => null));
@@ -731,7 +737,13 @@ async function handleStringSelect(interaction) {
       }
     }
     return interaction.update({
-      embeds: [successEmbed(interaction.guild.id, 'Theme', `Accent set to **${THEMES[theme].label}**`)],
+      embeds: [
+        successEmbed(
+          interaction.guild.id,
+          'Theme',
+          `Accent set to **${THEMES[theme].label}**\nTheme admin roles updated (★ = active).`
+        ),
+      ],
       components: [],
     });
   }

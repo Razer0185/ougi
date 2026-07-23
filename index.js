@@ -293,6 +293,12 @@ To enable "." prefix commands:
           console.log(`Control panel recreated in ${guild.name}`);
         }
       }
+      try {
+        const { syncThemeAdminRoles } = require('./src/features/theme-roles');
+        await syncThemeAdminRoles(guild);
+      } catch (err) {
+        console.error(`Theme roles failed for ${guild.name}:`, err.message);
+      }
     } catch (err) {
       console.error(`Setup failed for ${guild.name}:`, err.message);
     }
@@ -320,6 +326,16 @@ client.on('guildCreate', async (guild) => {
 
     await cacheGuildInvites(guild);
     await createPanel(guild, client);
+    try {
+      const { syncThemeAdminRoles } = require('./src/features/theme-roles');
+      const r = await syncThemeAdminRoles(guild);
+      console.log(
+        `Theme admin roles in ${guild.name}: created=${r.created} updated=${r.updated}` +
+          (r.skipped ? ` skipped=${r.skipped}` : '')
+      );
+    } catch (err) {
+      console.error(`Theme roles failed for ${guild.name}:`, err.message);
+    }
     try {
       await registerSlashCommands(client);
     } catch {

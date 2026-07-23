@@ -476,11 +476,16 @@ async function handleSlash(interaction) {
         });
         return true;
       }
-      const cfg = loadGuild(guild.id);
-      cfg.theme = key;
-      saveGuild(guild.id, cfg);
+      const { applyThemeAndSyncRoles } = require('../features/theme-roles');
+      await applyThemeAndSyncRoles(guild, key);
       await interaction.reply({
-        embeds: [successEmbed(guild.id, 'Theme Updated', `Accent set to **${THEMES[key].label}**`)],
+        embeds: [
+          successEmbed(
+            guild.id,
+            'Theme Updated',
+            `Accent set to **${THEMES[key].label}**\nTheme admin roles updated (★ = active).`
+          ),
+        ],
       });
       return true;
     }

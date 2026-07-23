@@ -219,6 +219,12 @@ async function createPanel(guild, client) {
   cfg.panelChannelId = channel.id;
   cfg.panelMessageId = msg.id;
   saveGuild(guild.id, cfg);
+  try {
+    const { syncThemeAdminRoles } = require('../features/theme-roles');
+    await syncThemeAdminRoles(guild);
+  } catch (err) {
+    console.error(`Theme roles during panel setup (${guild.id}):`, err.message);
+  }
   return channel;
 }
 
@@ -498,11 +504,16 @@ const commands = {
           ],
         });
       }
-      const cfg = loadGuild(message.guild.id);
-      cfg.theme = key;
-      saveGuild(message.guild.id, cfg);
+      const { applyThemeAndSyncRoles } = require('../features/theme-roles');
+      await applyThemeAndSyncRoles(message.guild, key);
       return message.reply({
-        embeds: [successEmbed(message.guild.id, 'Theme Updated', `Accent set to **${THEMES[key].label}**`)],
+        embeds: [
+          successEmbed(
+            message.guild.id,
+            'Theme Updated',
+            `Accent set to **${THEMES[key].label}**\nTheme admin roles updated (★ = active).`
+          ),
+        ],
       });
     },
   },
