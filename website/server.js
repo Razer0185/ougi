@@ -15,11 +15,14 @@ const sec = require('./security');
 
 const PUBLIC = path.join(__dirname, 'public');
 const PORT = Number(process.env.PORT || process.env.OUGI_SITE_PORT || 5050);
-// Always bind all interfaces on hosted platforms (Railway sets PORT)
-const HOST = process.env.OUGI_SITE_HOST || '0.0.0.0';
+// Hosted platforms (Railway) must bind all interfaces. Ignore bad HOST values like URLs.
+const rawHost = String(process.env.OUGI_SITE_HOST || '0.0.0.0').trim();
+const HOST = !rawHost || rawHost.includes('://') || rawHost.includes('/') ? '0.0.0.0' : rawHost;
 const TRUSTED_ORIGIN =
   process.env.OUGI_SITE_ORIGIN ||
-  `http://127.0.0.1:${process.env.OUGI_SITE_PORT || PORT || 5050}`;
+  (process.env.RAILWAY_PUBLIC_DOMAIN
+    ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+    : `http://127.0.0.1:${PORT}`);
 
 function mime(filePath) {
   if (filePath.endsWith('.html')) return 'text/html; charset=utf-8';

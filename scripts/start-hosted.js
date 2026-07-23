@@ -1,59 +1,57 @@
 'use strict';
 
 /**
- * Starts Discord bot + website together (Railway / Render).
- * Website is required for healthchecks. Bot is best-effort if DISCORD_TOKEN is set.
+ * Railway/Render entrypoint.
+ * Website listens on THIS process (required for healthchecks).
+ * Discord bot runs as a child when DISCORD_TOKEN is set.
  */
 
 const { spawn } = require('child_process');
 const path = require('path');
 
 const root = path.join(__dirname, '..');
-/** @type {import('child_process').ChildProcess[]} */
-const kids = [];
-let shuttingDown = false;
 
-function run(label, script, { critical }) {
-  const child = spawn(process.execPath, [script], {
-    cwd: root,
-    env: process.env,
-    stdio: 'inherit',
-  });
-  kids.push(child);
-  child.on('exit', (code, signal) => {
-    if (shuttingDown) return;
-    console.error(`[${label}] exited code=${code} signal=${signal}`);
-    if (critical) {
-      shuttingDown = true;
-      for (const k of kids) {
-        if (k !== child && !k.killed) k.kill('SIGTERM');
-      }
-      process.exit(code || 1);
-      return;
-    }
-    // Non-critical (bot): keep website up; retry bot after a delay
-    console.error(`[${label}] will retry in 15s (website stays online)`);
-    setTimeout(() => {
-      if (shuttingDown) return;
-      run(label, script, { critical: false });
-    }, 15_000);
-  });
-  return child;
+// Railway always provides PORT — never bind localhost-only
+if (!process.env.OUGI_SITE_HOST || process.env.OUGI_SITE_HOST.includes('://')) {
+  process.env.OUGI_SITE_HOST = '0.0.0.0';
+}
+if (!process.env.OUGI_SITE_ORIGIN && process.env.RAILWAY_PUBLIC_DOMAIN) {
+  process.env.OUGI_SITE_ORIGIN = `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
 }
 
-run('site', path.join(root, 'website', 'server.js'), { critical: true });
+// Start HTTP server in-process so /api/health works for the platform healthcheck
+require(path.join(root, 'website', 'server.js'));
 
-if (process.env.DISCORD_TOKEN || process.env.DISCORD_BOT_TOKEN || process.env.BOT_TOKEN) {
-  run('bot', path.join(root, 'index.js'), { critical: false });
+const hasToken = Boolean(
+  process.env.DISCORD_TOKEN || process.env.DISCORD_BOT_TOKEN || process.env.BOT_TOKEN
+);
+
+if (!hasToken) {
+  console.warn('[bot] DISCORD_TOKEN not set — website only. Add it in Railway Variables.');
 } else {
-  console.warn('[bot] DISCORD_TOKEN not set — website only. Add DISCORD_TOKEN in Railway Variables.');
-}
+  let shuttingDown = false;
+  let child = null;
 
-function shutdown() {
-  shuttingDown = true;
-  for (const k of kids) {
-    if (!k.killed) k.kill('SIGTERM');
+  function startBot() {
+    if (shuttingDown) return;
+    child = spawn(process.execPath, [path.join(root, 'index.js')], {
+      cwd: root,
+      env: process.env,
+      stdio: 'inherit',
+    });
+    child.on('exit', (code, signal) => {
+      console.error(`[bot] exited code=${code} signal=${signal} — retry in 15s`);
+      child = null;
+      if (!shuttingDown) setTimeout(startBot, 15_000);
+    });
   }
+
+  startBot();
+
+  function shutdown() {
+    shuttingDown = true;
+    if (child && !child.killed) child.kill('SIGTERM');
+  }
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 }
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
