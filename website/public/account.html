@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Account — Ougi</title>
+  <link rel="stylesheet" href="styles.css?v=20260723h" />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="logo" href="index.html">Ougi</a>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="pricing.html">Prices</a>
+      <a href="pay.html">Pay</a>
+      <a class="on" href="account.html">Account</a>
+    </nav>
+    <div class="topbar-actions">
+      <button class="theme-toggle" type="button" data-theme-toggle><span data-theme-label>Light</span></button>
+    </div>
+  </header>
+
+  <main class="auth-shell" id="authMain">
+    <h1 class="page-title" id="pageHeading">Account</h1>
+    <p class="page-sub" id="pageSub">Sign in to checkout, receipts, and support chat.</p>
+
+    <div id="authGate" class="auth-panel block">
+      <h2 id="authTitle">Log in</h2>
+      <p class="note err" id="authError" hidden></p>
+
+      <div id="googleBtnWrap">
+        <button class="btn google" type="button" id="googleBtn">
+          <span class="google-icon" aria-hidden="true"></span>
+          Continue with Google
+        </button>
+      </div>
+      <p class="note" id="googleHint" hidden></p>
+
+      <div class="auth-divider"><span>or</span></div>
+
+      <form id="loginForm">
+        <label class="field">Email<input name="email" type="email" required autocomplete="email" /></label>
+        <label class="field">Password<input name="password" type="password" required autocomplete="current-password" /></label>
+        <button class="btn primary" type="submit">Log in</button>
+        <p class="status" id="loginStatus"></p>
+      </form>
+
+      <form id="registerForm" hidden>
+        <label class="field">Name<input name="name" required maxlength="80" autocomplete="name" /></label>
+        <label class="field">Email<input name="email" type="email" required autocomplete="email" /></label>
+        <label class="field">Discord<input name="discord" required maxlength="64" autocomplete="username" /></label>
+        <label class="field">Password<input name="password" type="password" required minlength="12" autocomplete="new-password" /></label>
+        <p class="note">12+ characters, letters and numbers.</p>
+        <button class="btn primary" type="submit">Create account</button>
+        <p class="status" id="registerStatus"></p>
+      </form>
+
+      <p class="auth-switch">
+        <span id="switchPrompt">Don’t have an account?</span>
+        <button type="button" class="linkish" id="switchMode">Sign up</button>
+      </p>
+    </div>
+
+    <div id="accountPanel" class="auth-panel block account-signed" hidden>
+      <h2>Signed in</h2>
+      <div class="receipt-meta">
+        <div><span>Name</span><strong id="meName">—</strong></div>
+        <div><span>Email</span><strong id="meEmail">—</strong></div>
+        <div><span>Discord</span><strong id="meDiscord">—</strong></div>
+        <div><span>Sign-in</span><strong id="meAuth">—</strong></div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;justify-content:center">
+        <a class="btn primary" id="goPay" href="pay.html">Checkout</a>
+        <button class="btn ghost" type="button" id="logoutBtn">Log out</button>
+        <button class="btn ghost tiny" type="button" id="exportBtn">Export data</button>
+      </div>
+      <details style="margin-top:16px">
+        <summary>Delete account</summary>
+        <div id="deletePasswordWrap">
+          <label class="field">Password<input id="deletePass" type="password" autocomplete="current-password" /></label>
+        </div>
+        <div id="deleteConfirmWrap" hidden>
+          <label class="field">Type DELETE<input id="deleteConfirm" autocomplete="off" /></label>
+        </div>
+        <button class="btn tiny ghost" type="button" id="deleteBtn">Delete</button>
+        <p class="status" id="deleteStatus"></p>
+      </details>
+    </div>
+  </main>
+
+  <footer class="foot">
+    <strong>Ougi</strong>
+    <span><a href="pay.html">Pay</a></span>
+  </footer>
+
+  <script src="config.js?v=20260723h"></script>
+  <script src="theme.js?v=20260723h"></script>
+  <script src="site.js?v=20260723h"></script>
+  <script src="account.js?v=20260723h"></script>
+</body>
+</html>

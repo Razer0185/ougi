@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: ougi
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: OUGI_SITE_HOST
+        value: 0.0.0.0
+      - key: OUGI_FORCE_HTTPS
+        value: "1"
+      # Add in Render dashboard (Do Not commit secrets):
+      # DISCORD_TOKEN
+      # OUGI_SITE_ORIGIN=https://ougi.onrender.com
+      # GOOGLE_CLIENT_ID
+      # GOOGLE_CLIENT_SECRET
+      # OUGI_CHAT_SECRET

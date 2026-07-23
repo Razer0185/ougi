@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pay — Ougi</title>
+  <link rel="stylesheet" href="styles.css?v=20260723f" />
+  <script src="https://js.stripe.com/v3/" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="logo" href="index.html">Ougi</a>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="pricing.html">Prices</a>
+      <a class="on" href="pay.html">Pay</a>
+      <a href="account.html">Account</a>
+    </nav>
+    <div class="topbar-actions">
+      <button class="theme-toggle" type="button" data-theme-toggle><span data-theme-label>Light</span></button>
+      <a class="btn tiny ghost" href="account.html?next=pay.html">Account</a>
+    </div>
+  </header>
+
+  <main class="shell">
+    <h1 class="page-title">Checkout</h1>
+    <p class="page-sub">Sign in, choose a plan, pay with card / Apple Pay, gift card, or crypto.</p>
+
+    <div id="payAuthGate" class="block" hidden>
+      <h2>Account required</h2>
+      <p class="note">Create an account before paying — same login for receipt + support chat.</p>
+      <p style="margin-top:14px"><a class="btn primary" id="payAuthLink" href="account.html?next=pay.html">Sign in</a></p>
+    </div>
+
+    <div id="payCheckout" class="pay-layout pay-grid" hidden>
+      <aside class="pay-side">
+        <h2 class="pay-section-title" style="margin-top:0">Order</h2>
+        <p class="note" id="payAccountLabel" style="margin-top:0"></p>
+        <label class="field">Plan<select id="planSelect"></select></label>
+        <div class="summary-line"><span>Plan price</span><strong id="baseAmountLabel">$0</strong></div>
+        <div class="summary-line" id="feeLine" hidden><span id="feeLabel">Gift value</span><strong id="feeAmountLabel">$0</strong></div>
+        <div class="summary-line"><span>You pay</span><strong id="amountLabel">$0</strong></div>
+        <div class="summary-line"><span>Method</span><strong id="methodLabel">Card</strong></div>
+        <div class="summary-line"><span>Via</span><strong id="processorLabel">Stripe</strong></div>
+        <ul class="pay-trust">
+          <li>All methods: Starter $10 · Pro $20 · Lifetime $50</li>
+          <li>Card data never stored on Ougi</li>
+          <li>Chat opens after you submit</li>
+        </ul>
+        <p class="note" id="setupHint" hidden></p>
+      </aside>
+
+      <div class="pay-main">
+        <div class="method-tabs tabs" role="tablist">
+          <button class="method-tab tab on active" type="button" data-method="card">Card / Apple Pay</button>
+          <button class="method-tab tab" type="button" data-method="giftcard">Gift card</button>
+          <button class="method-tab tab" type="button" data-method="crypto">Crypto</button>
+        </div>
+
+        <div id="panelCard">
+          <form id="cardForm" novalidate>
+            <div class="pay-section-title">Billing</div>
+            <label class="field">Name<input name="name" id="payName" required maxlength="80" /></label>
+            <label class="field">Email<input name="email" id="payEmail" type="email" required readonly /></label>
+            <label class="field">Discord<input name="discord" id="payDiscord" required readonly /></label>
+            <label class="field">Server name / ID<input name="server" maxlength="100" placeholder="Optional" /></label>
+            <div class="pay-section-title">Card / Apple Pay</div>
+            <p class="note" style="margin-top:0">Secure fields via Stripe. Apple Pay shows on supported devices when enabled.</p>
+            <div id="paymentElement" class="stripe-box"><p class="note" id="stripeLoading">Loading…</p></div>
+            <div id="stripeSetup" class="stripe-setup" hidden></div>
+            <button class="btn primary" type="submit" id="paySubmit" disabled>Pay now</button>
+            <p class="status" id="cardStatus"></p>
+          </form>
+        </div>
+
+        <div id="panelGift" hidden>
+          <p class="note" style="margin-top:0">Buy the matching $10 / $20 / $50 card on G2A, paste the code, then open chat.</p>
+          <div class="gift-grid" id="giftQuickGrid"></div>
+          <label class="field">Type<select id="giftType"></select></label>
+          <div class="gift-actions"><a class="btn primary" id="giftBuyLink" href="#" target="_blank" rel="noopener noreferrer">Open buy link</a></div>
+          <p class="note" id="giftTypeNote"></p>
+          <div class="summary-line"><span>Required</span><strong id="giftDueLabel">—</strong></div>
+          <label class="field">Code / link<input id="giftCode" maxlength="200" autocomplete="off" /></label>
+          <button class="btn primary" type="button" id="giftNotify">I paid — open chat</button>
+          <p class="status" id="giftStatus"></p>
+        </div>
+
+        <div id="panelCrypto" hidden>
+          <label class="field">Discord<input id="cryptoDiscord" readonly /></label>
+          <label class="field">Txid <span class="opt">(optional)</span><input id="cryptoTx" maxlength="120" /></label>
+          <div class="crypto-list" id="cryptoList"></div>
+          <button class="btn primary" type="button" id="cryptoNotify" style="margin-top:12px">I paid — open chat</button>
+          <p class="status" id="cryptoStatus"></p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="foot">
+    <strong>Ougi</strong>
+    <span><a href="pricing.html">Prices</a></span>
+  </footer>
+
+  <script src="config.js?v=20260723f"></script>
+  <script src="theme.js?v=20260723f"></script>
+  <script src="site.js?v=20260723f"></script>
+  <script src="pay.js?v=20260723f"></script>
+</body>
+</html>

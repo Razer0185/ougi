@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="blue">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ougi Host</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="bg-glow" aria-hidden="true"></div>
+  <div class="bg-grid" aria-hidden="true"></div>
+
+  <div class="app">
+    <header class="top">
+      <div class="brand">
+        <div class="brand-mark" id="brandMark">N</div>
+        <div>
+          <h1>Ougi Host</h1>
+          <p class="tag">Local bot control · themes · auto-start</p>
+        </div>
+      </div>
+      <div class="status-pill" id="statusPill">
+        <span class="dot"></span>
+        <span id="statusText">Checking…</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="card hero-card">
+        <div class="hero-copy">
+          <h2>Bot control</h2>
+          <p>Host, stop, or restart your Discord bot from this panel. Auto-host can launch it whenever Windows signs in.</p>
+        </div>
+        <div class="actions">
+          <button class="btn primary" id="btnStart" type="button">Host Bot</button>
+          <button class="btn danger" id="btnStop" type="button">Stop Bot</button>
+          <button class="btn ghost" id="btnRestart" type="button">Restart</button>
+        </div>
+        <div class="meta-row">
+          <div class="meta">
+            <span class="meta-label">Uptime</span>
+            <span class="meta-value" id="uptime">—</span>
+          </div>
+          <div class="meta">
+            <span class="meta-label">PID</span>
+            <span class="meta-value" id="pid">—</span>
+          </div>
+          <div class="meta">
+            <span class="meta-label">Mode</span>
+            <span class="meta-value" id="mode">—</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>Invite to Server</h2>
+        </div>
+        <p class="card-desc">
+          <strong>Owner invite only.</strong> Do not post this publicly if you want Ougi paid/private.
+          After someone authorizes, approve their server ID under Access below.
+        </p>
+        <div class="actions">
+          <a class="btn primary" id="btnInvite" href="#" target="_blank" rel="noopener">Open Invite Link</a>
+          <button class="btn ghost" id="btnCopyInvite" type="button">Copy Link</button>
+        </div>
+        <p class="hint" id="inviteHint">Loading invite link…</p>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>Access (paid / private)</h2>
+          <label class="switch">
+            <input type="checkbox" id="privateModeToggle" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <p class="card-desc">
+          When private mode is on, Ougi leaves any server that is not on your allow list.
+          Website visitors can only <em>request</em> access — they cannot self-add.
+        </p>
+        <p class="hint" id="privateHint">Private mode loading…</p>
+        <div class="actions" style="margin-top:12px">
+          <a class="btn ghost" id="btnOpenSite" href="http://127.0.0.1:5050" target="_blank" rel="noopener">Open Website</a>
+          <button class="btn ghost" id="btnLicense" type="button">Create License Key</button>
+        </div>
+        <div class="meta-row" style="margin-top:14px">
+          <input id="allowGuildInput" type="text" placeholder="Server ID to allow" style="flex:1;min-width:160px;padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:transparent;color:inherit" />
+          <button class="btn primary" id="btnAllowGuild" type="button">Allow</button>
+        </div>
+        <div id="pendingRequests" class="hint" style="margin-top:14px"></div>
+        <div id="allowedList" class="hint" style="margin-top:8px"></div>
+        <p class="hint" id="licenseOut" style="margin-top:8px"></p>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>Auto Host</h2>
+          <label class="switch">
+            <input type="checkbox" id="autoHostToggle" />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <p class="card-desc">When enabled, Ougi starts the bot automatically every time your PC signs into Windows. Turn it off anytime from here.</p>
+        <p class="hint" id="autoHostHint">Auto-host is off.</p>
+      </section>
+
+      <section class="card themes-card">
+        <div class="card-head">
+          <h2>Host App Themes</h2>
+          <span class="chip" id="activeThemeChip">Blue</span>
+        </div>
+        <p class="card-desc">Pick a look for this host app. Your choice is saved and applied every time you open Ougi Host.</p>
+        <div class="theme-grid" id="themeGrid"></div>
+      </section>
+
+      <section class="card logs-card">
+        <div class="card-head">
+          <h2>Live logs</h2>
+          <button class="btn tiny ghost" id="btnClearLogs" type="button">Clear view</button>
+        </div>
+        <pre class="logs" id="logs"></pre>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <span>Ougi Host · localhost only</span>
+      <span id="footTheme">Theme: Blue</span>
+    </footer>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+  <script src="/app.js"></script>
+</body>
+</html>

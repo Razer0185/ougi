@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Staff — Ougi</title>
+  <meta http-equiv="Cache-Control" content="no-store" />
+  <link rel="stylesheet" href="styles.css?v=20260723d" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="logo" href="index.html">Ougi</a>
+    <div class="topbar-actions">
+      <button class="theme-toggle" type="button" data-theme-toggle><span data-theme-label>Light</span></button>
+      <button class="btn tiny ghost" type="button" id="adminLogout">Log out</button>
+    </div>
+  </header>
+
+  <main class="shell">
+    <h1 class="page-title">Staff inbox</h1>
+    <p class="page-sub">Password in data/ADMIN_PASSWORD_ONCE.txt on first run — delete after saving.</p>
+
+    <div id="loginGate" class="block" style="max-width:420px">
+      <label class="field">Admin password<input id="adminPass" type="password" autocomplete="current-password" minlength="8" /></label>
+      <label class="field">Display name<input id="staffName" maxlength="32" value="Staff" autocomplete="nickname" /></label>
+      <button class="btn primary" type="button" id="adminLogin">Open inbox</button>
+      <p class="status" id="loginStatus"></p>
+    </div>
+
+    <div id="inbox" class="admin-layout" hidden>
+      <div class="thread-list" id="threadList"></div>
+      <div class="chat-box">
+        <div class="chat-head">
+          <div>
+            <h3 id="activeTitle">Select a chat</h3>
+            <span id="activeMeta">—</span>
+          </div>
+        </div>
+        <div class="chat-messages" id="adminMessages"></div>
+        <div class="chat-compose">
+          <input id="adminInput" maxlength="1000" placeholder="Reply…" autocomplete="off" />
+          <button class="btn primary tiny" type="button" id="adminSend">Send</button>
+        </div>
+        <details class="block" style="margin:10px;border-width:1px">
+          <summary>Change password</summary>
+          <label class="field">Current<input id="pwCurrent" type="password" autocomplete="current-password" /></label>
+          <label class="field">New (12+)<input id="pwNew" type="password" autocomplete="new-password" minlength="12" /></label>
+          <button class="btn tiny ghost" type="button" id="pwChange">Update</button>
+          <p class="status" id="pwStatus"></p>
+        </details>
+      </div>
+    </div>
+  </main>
+
+  <script src="config.js?v=20260723d"></script>
+  <script src="theme.js?v=20260723d"></script>
+  <script src="site.js?v=20260723d"></script>
+  <script src="admin-chat.js?v=20260723d"></script>
+</body>
+</html>

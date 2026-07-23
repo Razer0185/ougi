@@ -1,0 +1,13 @@
+token.txt
+.env
+node_modules/
+data/
+*.log
+.DS_Store
+invite-url.txt
+.cursor/
+data/ADMIN_PASSWORD_ONCE.txt
+data/chat-admin-hash.txt
+data/admin-sessions.json
+data/csrf-tokens.json
+data/chats.json

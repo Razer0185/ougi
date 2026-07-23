@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Prices — Ougi</title>
+  <link rel="stylesheet" href="styles.css?v=20260723f" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="logo" href="index.html">Ougi</a>
+    <nav>
+      <a href="index.html">Home</a>
+      <a class="on" href="pricing.html">Prices</a>
+      <a href="pay.html">Pay</a>
+      <a href="account.html">Account</a>
+    </nav>
+    <div class="topbar-actions">
+      <button class="theme-toggle" type="button" data-theme-toggle><span data-theme-label>Light</span></button>
+      <a class="btn primary tiny" href="pay.html">Pay now</a>
+    </div>
+  </header>
+
+  <main class="shell">
+    <h1 class="page-title">Prices</h1>
+    <p class="page-sub">USD plans: Starter $10 · Pro $20 · Lifetime $50.</p>
+
+    <div class="plans" id="planGrid"></div>
+
+    <div class="block">
+      <h2>Gift card amounts + buy links</h2>
+      <div class="table-wrap">
+        <table class="matrix" id="giftMatrix">
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Starter ($10)</th>
+              <th>Pro ($20)</th>
+              <th>Lifetime ($50)</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <p style="margin-top:20px"><a class="btn primary" href="pay.html">Go to checkout</a></p>
+  </main>
+
+  <footer class="foot">
+    <strong>Ougi</strong>
+    <span><a href="pay.html">Checkout</a></span>
+  </footer>
+
+  <script src="config.js?v=20260723f"></script>
+  <script src="theme.js?v=20260723f"></script>
+  <script src="site.js?v=20260723f"></script>
+  <script src="pricing.js?v=20260723f"></script>
+</body>
+</html>
