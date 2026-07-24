@@ -10,6 +10,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 
 const root = path.join(__dirname, '..');
+require(path.join(root, 'website', 'load-env'));
 
 // Never inherit a free-edition flag onto the Pro child by accident
 const hostedEdition = String(process.env.OUGI_EDITION || '').toLowerCase();
