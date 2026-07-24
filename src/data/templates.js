@@ -77,13 +77,6 @@ const SERVER_TEMPLATES = [
         ],
       },
       {
-        name: '🎫 SUPPORT',
-        channels: [
-          { name: 'create-ticket', type: 'text', perm: 'readonly' },
-          { name: 'priority-support', type: 'text', perm: 'staff' },
-        ],
-      },
-      {
         name: '🔊 VOICE',
         channels: [
           { name: 'Lounge', type: 'voice' },
@@ -100,6 +93,13 @@ const SERVER_TEMPLATES = [
           { name: 'reports', type: 'text', perm: 'staff' },
         ],
         staffOnly: true,
+      },
+      {
+        name: '🎫 SUPPORT',
+        channels: [
+          { name: 'create-ticket', type: 'text', perm: 'readonly' },
+          { name: 'priority-support', type: 'text', perm: 'staff' },
+        ],
       },
     ],
   },
@@ -376,9 +376,17 @@ const SERVER_TEMPLATES = [
         channels: [
           { name: '🛡️・staff-chat', type: 'text', perm: 'staff' },
           { name: '📋・mod-logs', type: 'text', perm: 'logs' },
+          { name: '🎫・ticket-logs', type: 'text', perm: 'logs' },
           { name: '🚨・reports', type: 'text', perm: 'staff' },
         ],
         staffOnly: true,
+      },
+      {
+        name: '│─── Support 🎫 ˅',
+        channels: [
+          { name: '🎫・create-ticket', type: 'text', perm: 'readonly' },
+          { name: '⚡・priority-support', type: 'text', perm: 'staff' },
+        ],
       },
       {
         name: '╰──── End 🔚',
@@ -424,9 +432,17 @@ const SERVER_TEMPLATES = [
         channels: [
           { name: '🛡️｜staff-chat', type: 'text', perm: 'staff' },
           { name: '📋｜mod-logs', type: 'text', perm: 'logs' },
+          { name: '🎫｜ticket-logs', type: 'text', perm: 'logs' },
           { name: '🚨｜reports', type: 'text', perm: 'staff' },
         ],
         staffOnly: true,
+      },
+      {
+        name: '│─── Support 🎫 ˅',
+        channels: [
+          { name: '🎫｜create-ticket', type: 'text', perm: 'readonly' },
+          { name: '⚡｜priority-support', type: 'text', perm: 'staff' },
+        ],
       },
       {
         name: '╰──── End 🔚',
@@ -472,9 +488,17 @@ const SERVER_TEMPLATES = [
         channels: [
           { name: '🛡️-staff-chat', type: 'text', perm: 'staff' },
           { name: '📋-mod-logs', type: 'text', perm: 'logs' },
+          { name: '🎫-ticket-logs', type: 'text', perm: 'logs' },
           { name: '🚨-reports', type: 'text', perm: 'staff' },
         ],
         staffOnly: true,
+      },
+      {
+        name: '│─── Support 🎫 ˅',
+        channels: [
+          { name: '🎫-create-ticket', type: 'text', perm: 'readonly' },
+          { name: '⚡-priority-support', type: 'text', perm: 'staff' },
+        ],
       },
       {
         name: '╰──── End 🔚',
@@ -520,9 +544,17 @@ const SERVER_TEMPLATES = [
         channels: [
           { name: '🛡️ ★ staff-chat', type: 'text', perm: 'staff' },
           { name: '📋 ★ mod-logs', type: 'text', perm: 'logs' },
+          { name: '🎫 ★ ticket-logs', type: 'text', perm: 'logs' },
           { name: '🚨 ★ reports', type: 'text', perm: 'staff' },
         ],
         staffOnly: true,
+      },
+      {
+        name: '│─── Support 🎫 ˅',
+        channels: [
+          { name: '🎫 ★ create-ticket', type: 'text', perm: 'readonly' },
+          { name: '⚡ ★ priority-support', type: 'text', perm: 'staff' },
+        ],
       },
       {
         name: '╰──── End 🔚',

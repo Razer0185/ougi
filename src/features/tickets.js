@@ -449,15 +449,21 @@ async function ensureTicketTemplateChannels(guild, { staffRoles = [], vipRoles =
     }
   };
 
-  if (!createCh || !priorityCh) {
-    let supportCat = guild.channels.cache.find(
-      (c) =>
-        c.type === ChannelType.GuildCategory &&
-        /support|ticket/i.test(c.name)
-    );
+  const { supportCategoryNameForGuild, ensureEmptyEndCategory } = require('./templates');
+  const wantSupportName = supportCategoryNameForGuild(guild);
+
+  // Always align Support category style + End order (even if channels already exist)
+  let supportCat = guild.channels.cache.find(
+    (c) =>
+      c.type === ChannelType.GuildCategory &&
+      /\bsupport\b/i.test(c.name) &&
+      !/^╰─+/i.test(c.name)
+  );
+
+  if (!createCh || !priorityCh || !supportCat) {
     if (!supportCat) {
       supportCat = await guild.channels.create({
-        name: '🎫 SUPPORT',
+        name: wantSupportName,
         type: ChannelType.GuildCategory,
         reason: 'Ougi ticket auto-setup',
       });
@@ -482,6 +488,21 @@ async function ensureTicketTemplateChannels(guild, { staffRoles = [], vipRoles =
       });
       await applyPerms(priorityCh, 'staff');
     }
+  }
+
+  if (supportCat) {
+    if (supportCat.name !== wantSupportName) {
+      await supportCat.setName(wantSupportName).catch(() => {});
+    }
+    if (createCh && createCh.parentId !== supportCat.id) {
+      await createCh.setParent(supportCat.id, { lockPermissions: false }).catch(() => {});
+    }
+    if (priorityCh && priorityCh.parentId !== supportCat.id) {
+      await priorityCh.setParent(supportCat.id, { lockPermissions: false }).catch(() => {});
+    }
+    await ensureEmptyEndCategory(guild).catch((err) =>
+      console.warn('end closer after support:', err.message)
+    );
   }
 
   if (!logsCh) {

@@ -533,7 +533,7 @@ function templatePreviewEmbed(guildId, kind, template) {
 }
 
 /**
- * Keep an empty ╰──── End 🔚 category at the bottom.
+ * Keep an empty ╰──── End 🔚 category at the bottom (after Support when present).
  */
 async function ensureEmptyEndCategory(guild) {
   const categories = [...guild.channels.cache.values()]
@@ -580,18 +580,56 @@ async function ensureEmptyEndCategory(guild) {
     }
   }
 
-  const maxPos = Math.max(
-    0,
-    ...[...guild.channels.cache.values()]
-      .filter((c) => c.type === ChannelType.GuildCategory)
-      .map((c) => c.rawPosition)
+  // Prefer: … → Support → End → (Ougi / other). Never leave Support under End.
+  const supportCat = [...guild.channels.cache.values()].find(
+    (c) =>
+      c.type === ChannelType.GuildCategory &&
+      /\bsupport\b/i.test(c.name) &&
+      c.id !== endCat.id &&
+      !/^╰─+/i.test(c.name)
   );
-  await endCat.setPosition(maxPos + 1, { reason: 'Ougi keep end at bottom' }).catch(() => {});
+  const ougiCat = [...guild.channels.cache.values()].find(
+    (c) => c.type === ChannelType.GuildCategory && /\bougi\b/i.test(c.name) && c.id !== endCat.id
+  );
+
+  if (supportCat) {
+    const staffLike = [...guild.channels.cache.values()]
+      .filter(
+        (c) =>
+          c.type === ChannelType.GuildCategory &&
+          /staff|team/i.test(c.name) &&
+          c.id !== endCat.id &&
+          c.id !== supportCat.id
+      )
+      .sort((a, b) => b.rawPosition - a.rawPosition)[0];
+    const basePos = staffLike ? staffLike.rawPosition + 1 : supportCat.rawPosition;
+    await supportCat.setPosition(basePos, { reason: 'Ougi Support before End' }).catch(() => {});
+    await endCat.setPosition(basePos + 1, { reason: 'Ougi End under Support' }).catch(() => {});
+    if (ougiCat) {
+      await ougiCat.setPosition(basePos + 2, { reason: 'Ougi panel after End' }).catch(() => {});
+    }
+  } else {
+    const maxPos = Math.max(
+      0,
+      ...[...guild.channels.cache.values()]
+        .filter((c) => c.type === ChannelType.GuildCategory && c.id !== endCat.id)
+        .map((c) => c.rawPosition)
+    );
+    await endCat.setPosition(maxPos + 1, { reason: 'Ougi keep end at bottom' }).catch(() => {});
+  }
 
   return {
     endCategory: endCat.name,
     movedChannels: underEnd.map((c) => c.name),
   };
+}
+
+/** Category name matching the server's aesthetic style. */
+function supportCategoryNameForGuild(guild) {
+  const cfg = loadGuild(guild.id);
+  const style = cfg.activeTemplate?.style || styleFromTemplateId(cfg.activeTemplate?.id);
+  if (style === 'plain') return '🎫 SUPPORT';
+  return '│─── Support 🎫 ˅';
 }
 
 module.exports = {
@@ -605,6 +643,7 @@ module.exports = {
   syncTemplateChannelPermissions,
   templatePreviewEmbed,
   ensureEmptyEndCategory,
+  supportCategoryNameForGuild,
   inferPerm,
   applyChannelPermissions,
   applyCategoryPermissions,
