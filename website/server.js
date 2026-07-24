@@ -190,6 +190,12 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && pathname === '/api/health') {
+      const aiYou = !!(
+        process.env.YDC_API_KEY ||
+        process.env.YOU_API_KEY ||
+        process.env.YOUCOM_API_KEY
+      );
+      const aiGemini = !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY);
       return sendJson(
         res,
         200,
@@ -200,6 +206,9 @@ const server = http.createServer(async (req, res) => {
           chat: true,
           stripe: payments.isConfigured(),
           google: googleAuth.isConfigured(),
+          ai: aiYou || aiGemini,
+          aiYou,
+          aiGemini,
         },
         req
       );

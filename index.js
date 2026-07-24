@@ -761,14 +761,11 @@ client.on('messageCreate', async (message) => {
     await refreshSticky(message).catch(() => {});
   }
 
-  // AI channel build follow-up (purpose / details) — before command parse (Pro only)
+  // AI channel build interview follow-ups (before command parse)
   try {
-    const { isFreeEdition } = require('./src/utils/edition');
-    if (!isFreeEdition()) {
-      const { handlePendingBuildReply } = require('./src/features/ai');
-      const handled = await handlePendingBuildReply(message);
-      if (handled) return;
-    }
+    const { handlePendingBuildReply } = require('./src/features/ai');
+    const handled = await handlePendingBuildReply(message);
+    if (handled) return;
   } catch {
     /* ignore */
   }
