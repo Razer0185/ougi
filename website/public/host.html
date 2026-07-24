@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Host — Ougi</title>
-  <link rel="stylesheet" href="styles.css?v=20260723vis" />
+  <link rel="stylesheet" href="styles.css?v=20260724host" />
 </head>
 <body>
   <header class="topbar">
@@ -26,9 +26,7 @@
   <main class="shell">
     <h1 class="page-title">Host your bot</h1>
     <p class="page-sub">
-      Same login as checkout. We run Ougi for you — you never download the source.
-      Pay → <strong>Activate hosting</strong> with your Discord server ID → invite the bot.
-      Monthly plans auto-expire; renew on Checkout.
+      We run Ougi for you — no source download. Pay → activate your Discord server → invite the bot.
     </p>
 
     <div id="needLogin" class="block" hidden>
@@ -38,6 +36,30 @@
     </div>
 
     <div id="hostPanel" hidden>
+      <div class="host-overview" id="hostOverview">
+        <div class="host-overview-main">
+          <span class="host-badge" id="hostBadge">…</span>
+          <strong class="host-next" id="hostNext">Loading…</strong>
+          <p class="muted" id="hostNextDetail"></p>
+        </div>
+        <div class="host-overview-side">
+          <div class="host-stat">
+            <span>Time left</span>
+            <strong id="hostDaysLeft">—</strong>
+          </div>
+          <div class="host-stat">
+            <span>Server</span>
+            <strong id="hostGuildShort">—</strong>
+          </div>
+        </div>
+      </div>
+
+      <ol class="host-steps" id="hostSteps" aria-label="Hosting steps">
+        <li data-step="pay"><span>1</span> Pay for a plan</li>
+        <li data-step="activate"><span>2</span> Activate with your server ID</li>
+        <li data-step="invite"><span>3</span> Invite Ougi to Discord</li>
+      </ol>
+
       <div class="block">
         <h2>Account</h2>
         <div class="receipt-meta">
@@ -56,7 +78,7 @@
           <div><span>Server ID</span><strong id="hGuild">—</strong></div>
         </div>
         <p class="note" id="hHint" style="margin-top:12px"></p>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
+        <div class="host-actions">
           <a class="btn ghost" href="pay.html" id="payLink">Checkout / renew</a>
           <a class="btn primary" href="dashboard.html">Configure bot</a>
           <button class="btn ghost" type="button" id="devGrantBtn" hidden>Dev: grant 1 month</button>
@@ -66,13 +88,12 @@
       <div class="block" id="activateBlock">
         <h2>Activate hosting</h2>
         <p class="muted">
-          Enable Developer Mode in Discord → right-click your server → Copy Server ID.
-          Then click Activate. We whitelist that server on our hosted Ougi.
+          Discord → Settings → Advanced → Developer Mode → right-click server → Copy Server ID.
         </p>
         <label class="field">Discord server ID
           <input id="guildInput" type="text" inputmode="numeric" pattern="\d*" maxlength="20" placeholder="123456789012345678" autocomplete="off" />
         </label>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
+        <div class="host-actions">
           <button class="btn primary" type="button" id="activateBtn">Activate hosting</button>
           <button class="btn ghost" type="button" id="deactivateBtn">Deactivate</button>
         </div>
@@ -81,9 +102,13 @@
 
       <div class="block" id="inviteBlock" hidden>
         <h2>Invite Ougi</h2>
-        <p class="muted">After activate, add our bot to that server with this link (private — don’t post publicly).</p>
-        <p><a class="btn primary" id="inviteLink" href="#" target="_blank" rel="noopener">Open bot invite</a></p>
-        <p class="note" id="inviteMissing" hidden>Invite link missing — start the Discord bot once so it writes the client id.</p>
+        <p class="muted">Private invite — don’t post it publicly. Add the bot to the server you activated.</p>
+        <div class="host-actions">
+          <a class="btn primary" id="inviteLink" href="#" target="_blank" rel="noopener">Open bot invite</a>
+          <button class="btn ghost" type="button" id="copyInviteBtn">Copy invite link</button>
+        </div>
+        <p class="note" id="inviteMissing" hidden>Invite link missing — contact support or wait for the hosted bot to finish starting.</p>
+        <p class="status" id="inviteCopyStatus"></p>
       </div>
     </div>
   </main>
@@ -93,9 +118,9 @@
     <span><a href="account.html">Account</a> · <a href="pricing.html">Prices</a></span>
   </footer>
 
-  <script src="config.js?v=20260723vis"></script>
-  <script src="theme.js?v=20260723vis"></script>
-  <script src="site.js?v=20260723vis"></script>
-  <script src="host.js?v=20260723vis"></script>
+  <script src="config.js?v=20260724host"></script>
+  <script src="theme.js?v=20260724host"></script>
+  <script src="site.js?v=20260724host"></script>
+  <script src="host.js?v=20260724host"></script>
 </body>
 </html>

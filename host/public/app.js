@@ -18,6 +18,11 @@ const els = {
   btnInvite: document.getElementById('btnInvite'),
   btnCopyInvite: document.getElementById('btnCopyInvite'),
   inviteHint: document.getElementById('inviteHint'),
+  inviteUrlPreview: document.getElementById('inviteUrlPreview'),
+  chipToken: document.getElementById('chipToken'),
+  chipAi: document.getElementById('chipAi'),
+  chipPrivate: document.getElementById('chipPrivate'),
+  heroHint: document.getElementById('heroHint'),
   privateModeToggle: document.getElementById('privateModeToggle'),
   privateHint: document.getElementById('privateHint'),
   pendingRequests: document.getElementById('pendingRequests'),
@@ -97,6 +102,13 @@ async function api(path, opts = {}) {
   return res.json();
 }
 
+function setChip(el, ok, label) {
+  if (!el) return;
+  el.textContent = label;
+  el.classList.toggle('ok', !!ok);
+  el.classList.toggle('bad', !ok);
+}
+
 function updateStatus(data) {
   const on = !!data.running;
   els.statusPill.classList.toggle('on', on);
@@ -109,14 +121,42 @@ function updateStatus(data) {
   els.autoHostHint.textContent = data.autoHost
     ? 'Auto-host is ON — Ougi starts with Windows sign-in.'
     : 'Auto-host is OFF.';
+
+  const ready = data.readiness || {};
+  setChip(els.chipToken, ready.token, ready.token ? 'Token ready' : 'Missing token.txt');
+  setChip(
+    els.chipAi,
+    ready.ai,
+    ready.ai ? (ready.aiGemini ? 'AI ready (Gemini)' : 'AI ready (You.com)') : 'AI key missing'
+  );
+  setChip(
+    els.chipPrivate,
+    true,
+    ready.privateMode ? 'Private mode ON' : 'Private mode OFF'
+  );
+
+  if (els.heroHint) {
+    els.heroHint.textContent = on
+      ? 'Bot is running. Use invite below for your server, then allow the server ID under Access.'
+      : 'Start the bot here when you want Ougi online on this PC.';
+  }
+
   if (data.inviteUrl) {
     els.btnInvite.href = data.inviteUrl;
     els.inviteHint.textContent =
       'Owner invite only — after they authorize, allow their server ID below.';
     els.btnInvite.dataset.url = data.inviteUrl;
+    if (els.inviteUrlPreview) {
+      els.inviteUrlPreview.hidden = false;
+      els.inviteUrlPreview.textContent = data.inviteUrl;
+    }
   } else {
     els.btnInvite.href = '#';
     els.inviteHint.textContent = 'Invite link unavailable — check token.txt.';
+    if (els.inviteUrlPreview) {
+      els.inviteUrlPreview.hidden = true;
+      els.inviteUrlPreview.textContent = '';
+    }
   }
 
   if (data.access && els.privateModeToggle) {

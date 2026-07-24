@@ -131,6 +131,45 @@ h2 { font-size: 1.15rem; font-weight: 700; }
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger) 20%, transparent);
 }
 
+.ready-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -8px 0 22px;
+  animation: rise 0.65s ease both;
+}
+.ready-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--card) 90%, transparent);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.ready-chip.ok {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 40%, var(--border));
+}
+.ready-chip.bad {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+}
+.invite-url {
+  display: block;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--card) 70%, transparent);
+  color: var(--muted);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.72rem;
+  word-break: break-all;
+}
+
 @keyframes pulse {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.15); }

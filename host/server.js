@@ -275,6 +275,25 @@ function statusPayload() {
   } catch {
     /* ignore */
   }
+
+  const hasToken = fs.existsSync(path.join(ROOT, 'token.txt'));
+  let aiYou = false;
+  let aiGemini = false;
+  try {
+    aiYou = !!(
+      process.env.YDC_API_KEY ||
+      process.env.YOU_API_KEY ||
+      fs.existsSync(path.join(ROOT, 'you-api-key.txt'))
+    );
+    aiGemini = !!(
+      process.env.GEMINI_API_KEY ||
+      process.env.GOOGLE_AI_API_KEY ||
+      fs.existsSync(path.join(ROOT, 'gemini-api-key.txt'))
+    );
+  } catch {
+    /* ignore */
+  }
+
   return {
     running,
     managed: !!(botProcess && botProcess.exitCode === null),
@@ -287,6 +306,13 @@ function statusPayload() {
     port: cfg.port,
     inviteUrl: getBotInviteUrl(),
     siteUrl: 'http://127.0.0.1:5050',
+    readiness: {
+      token: hasToken,
+      ai: aiYou || aiGemini,
+      aiYou,
+      aiGemini,
+      privateMode: !!access.privateMode,
+    },
     access: {
       privateMode: !!access.privateMode,
       allowedCount: (access.allowedGuildIds || []).length,

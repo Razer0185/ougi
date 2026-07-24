@@ -28,11 +28,17 @@
       </div>
     </header>
 
+    <div class="ready-strip" id="readyStrip" aria-label="Readiness">
+      <span class="ready-chip" id="chipToken">Token …</span>
+      <span class="ready-chip" id="chipAi">AI …</span>
+      <span class="ready-chip" id="chipPrivate">Access …</span>
+    </div>
+
     <main class="layout">
       <section class="card hero-card">
         <div class="hero-copy">
           <h2>Bot control</h2>
-          <p>Host, stop, or restart your Discord bot from this panel. Auto-host can launch it whenever Windows signs in.</p>
+          <p id="heroHint">Host, stop, or restart your Discord bot. Auto-host can launch it when Windows signs in.</p>
         </div>
         <div class="actions">
           <button class="btn primary" id="btnStart" type="button">Host Bot</button>
@@ -68,6 +74,7 @@
           <button class="btn ghost" id="btnCopyInvite" type="button">Copy Link</button>
         </div>
         <p class="hint" id="inviteHint">Loading invite link…</p>
+        <code class="invite-url" id="inviteUrlPreview" hidden></code>
       </section>
 
       <section class="card">

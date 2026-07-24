@@ -590,6 +590,98 @@ table.matrix {
 }
 .receipt-meta strong { font-size: 0.95rem; font-weight: 600; word-break: break-word; }
 
+.host-overview {
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr;
+  gap: 16px;
+  padding: 18px 20px;
+  margin-bottom: 18px;
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  border-radius: 14px;
+}
+.host-overview-main { display: grid; gap: 8px; align-content: start; }
+.host-overview-side { display: grid; gap: 10px; }
+.host-stat {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  border-radius: 10px;
+}
+.host-stat span {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 700;
+}
+.host-stat strong { font-size: 0.95rem; }
+.host-next { font-size: 1.05rem; line-height: 1.35; }
+.host-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+.host-badge.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
+.host-badge.warn { color: #e2b34a; border-color: color-mix(in srgb, #e2b34a 45%, var(--line)); }
+.host-badge.bad { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); }
+.host-badge.muted { color: var(--muted); }
+.host-steps {
+  list-style: none;
+  margin: 0 0 18px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.host-steps li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--muted);
+  background: var(--bg-2);
+}
+.host-steps li span {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border: 1px solid var(--line);
+}
+.host-steps li.current {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+}
+.host-steps li.done { color: var(--ok); }
+.host-steps li.done span {
+  background: color-mix(in srgb, var(--ok) 18%, transparent);
+  border-color: color-mix(in srgb, var(--ok) 45%, var(--line));
+}
+.host-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+@media (max-width: 720px) {
+  .host-overview { grid-template-columns: 1fr; }
+}
+
 .auth-shell {
   max-width: 440px;
   margin: 0 auto;

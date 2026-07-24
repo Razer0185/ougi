@@ -3,6 +3,7 @@
   const hostPanel = document.getElementById('hostPanel');
   const hostStatus = document.getElementById('hostStatus');
   let csrf = '';
+  let lastInviteUrl = '';
 
   function setStatus(msg, ok) {
     if (!hostStatus) return;
@@ -15,6 +16,87 @@
     if (sub.expiresAt == null && sub.planId === 'lifetime') return 'Never (lifetime)';
     if (!sub.expiresAt) return '—';
     return new Date(sub.expiresAt).toLocaleString();
+  }
+
+  function daysLeftLabel(sub) {
+    if (!sub) return '—';
+    if (sub.planId === 'lifetime' || sub.expiresAt == null) return 'Lifetime';
+    const ms = Number(sub.expiresAt) - Date.now();
+    if (!Number.isFinite(ms)) return '—';
+    if (ms <= 0) return 'Expired';
+    const days = Math.ceil(ms / (24 * 60 * 60 * 1000));
+    if (days <= 1) {
+      const hours = Math.max(1, Math.ceil(ms / (60 * 60 * 1000)));
+      return hours + 'h left';
+    }
+    return days + ' days left';
+  }
+
+  function shortGuild(id) {
+    if (!id) return 'Not linked';
+    const s = String(id);
+    if (s.length <= 10) return s;
+    return s.slice(0, 6) + '…' + s.slice(-4);
+  }
+
+  function setSteps(donePay, doneActivate, doneInviteReady) {
+    const steps = document.getElementById('hostSteps');
+    if (!steps) return;
+    steps.querySelectorAll('[data-step]').forEach((li) => {
+      const step = li.getAttribute('data-step');
+      let on = false;
+      if (step === 'pay') on = donePay;
+      if (step === 'activate') on = doneActivate;
+      if (step === 'invite') on = doneInviteReady;
+      li.classList.toggle('done', on);
+      li.classList.toggle('current', false);
+    });
+    const order = ['pay', 'activate', 'invite'];
+    const flags = { pay: donePay, activate: doneActivate, invite: doneInviteReady };
+    const next = order.find((k) => !flags[k]);
+    if (next) {
+      const el = steps.querySelector(`[data-step="${next}"]`);
+      if (el) el.classList.add('current');
+    }
+  }
+
+  function renderOverview(sub, inviteUrl) {
+    const badge = document.getElementById('hostBadge');
+    const next = document.getElementById('hostNext');
+    const detail = document.getElementById('hostNextDetail');
+    const days = document.getElementById('hostDaysLeft');
+    const guildShort = document.getElementById('hostGuildShort');
+
+    days.textContent = daysLeftLabel(sub);
+    guildShort.textContent = shortGuild(sub?.guildId);
+
+    const status = sub?.status || 'none';
+    badge.className = 'host-badge';
+    if (status === 'active') {
+      badge.classList.add('ok');
+      badge.textContent = 'Hosting active';
+      next.textContent = inviteUrl ? 'Invite Ougi if it is not in your server yet' : 'Hosting is live on your server';
+      detail.textContent = 'Use Configure bot for settings, or renew before expiry.';
+      setSteps(true, true, !!inviteUrl || !!sub?.guildId);
+    } else if (status === 'pending_activate') {
+      badge.classList.add('warn');
+      badge.textContent = 'Paid — activate next';
+      next.textContent = 'Enter your Discord server ID and activate';
+      detail.textContent = 'Then open the invite link to add Ougi.';
+      setSteps(true, false, false);
+    } else if (status === 'expired') {
+      badge.classList.add('bad');
+      badge.textContent = 'Expired';
+      next.textContent = 'Renew on Checkout to restore hosting';
+      detail.textContent = 'After payment, activate your server ID again.';
+      setSteps(false, false, false);
+    } else {
+      badge.classList.add('muted');
+      badge.textContent = 'No plan';
+      next.textContent = 'Start with Checkout';
+      detail.textContent = 'Pick a monthly plan, then come back here to activate.';
+      setSteps(false, false, false);
+    }
   }
 
   function render(data) {
@@ -46,9 +128,11 @@
     const inviteBlock = document.getElementById('inviteBlock');
     const inviteLink = document.getElementById('inviteLink');
     const inviteMissing = document.getElementById('inviteMissing');
+    lastInviteUrl = '';
     if (sub && (sub.status === 'active' || sub.status === 'pending_activate')) {
       inviteBlock.hidden = false;
       if (data.inviteUrl) {
+        lastInviteUrl = data.inviteUrl;
         inviteLink.href = data.inviteUrl;
         inviteLink.hidden = false;
         inviteMissing.hidden = true;
@@ -60,16 +144,16 @@
       inviteBlock.hidden = true;
     }
 
+    renderOverview(sub, data.inviteUrl);
+
     if (sub?.guildId) {
       document.getElementById('guildInput').value = sub.guildId;
     }
 
-    // Dev grant button when no plan (local site)
     const devBtn = document.getElementById('devGrantBtn');
     if (devBtn) {
-      devBtn.hidden = Boolean(sub && sub.status !== 'expired' && sub.planId);
-      // Always show in non-paid local testing when nothing active
       if (!sub || sub.status === 'expired' || sub.status === 'none') devBtn.hidden = false;
+      else devBtn.hidden = Boolean(sub && sub.status !== 'expired' && sub.planId);
     }
   }
 
@@ -140,6 +224,26 @@
       await load();
     } catch (err) {
       setStatus(err.message || 'Grant failed', false);
+    }
+  });
+
+  document.getElementById('copyInviteBtn')?.addEventListener('click', async () => {
+    const out = document.getElementById('inviteCopyStatus');
+    if (!lastInviteUrl) {
+      if (out) out.textContent = 'Invite link not ready yet.';
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(lastInviteUrl);
+      if (out) {
+        out.textContent = 'Invite link copied.';
+        out.style.color = 'var(--ok)';
+      }
+    } catch {
+      if (out) {
+        out.textContent = lastInviteUrl;
+        out.style.color = '';
+      }
     }
   });
 
