@@ -16,7 +16,8 @@
     "host-app:build": "dotnet publish desktop/OugiHost/OugiHost.csproj -c Release -r win-x64 --self-contained true -o desktop/dist && node scripts/copy-host-app.js",
     "host-app:seal": "node scripts/seal-runtime.js",
     "host-app:pack": "node scripts/pack-ougi-host.js",
-    "test:security": "node --test website/security.test.js"
+    "test:security": "node --test website/security.test.js",
+    "test:faq": "node --test website/chat-faq.test.js"
   },
   "engines": {
     "node": ">=18"

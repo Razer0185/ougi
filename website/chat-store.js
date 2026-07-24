@@ -224,7 +224,9 @@ function createThread({ buyerName, order, userId }) {
         from: 'staff',
         name: 'Ougi Support',
         text:
-          'Hey! Thanks for your order. Share your server name/ID if you have not already. A staff member will join, you give them Administrator, and they will add Ougi for you.',
+          'Hey! Thanks for your order. Share your Discord server ID if you have it. ' +
+          'You can also ask: where to buy, how to activate, or how to invite the bot — I will send the links. ' +
+          'A staff member can join if you need more help.',
         at: Date.now(),
       },
     ],

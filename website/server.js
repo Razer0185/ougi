@@ -9,6 +9,7 @@ const {
   isPrivateMode,
 } = require('../src/utils/access');
 const chat = require('./chat-store');
+const chatFaq = require('./chat-faq');
 const payments = require('./payments');
 const users = require('./users');
 const staffAccounts = require('./staff');
@@ -1323,7 +1324,22 @@ const server = http.createServer(async (req, res) => {
         name: thread.buyerName,
         text: body.text,
       });
-      return sendJson(res, 200, { ok: true, thread: sec.safePublicThread(result.thread) }, req);
+      let threadOut = result.thread;
+      try {
+        const auto = chatFaq.maybeAutoReply(id, body.text);
+        if (auto?.text) {
+          const replied = chat.addMessage(id, {
+            from: 'staff',
+            name: 'Ougi Support',
+            text: auto.text,
+          });
+          threadOut = replied.thread;
+          sec.logSecure('chat_faq_auto', { threadId: id, intent: auto.intent, result: 'ok' });
+        }
+      } catch (err) {
+        sec.logSecure('chat_faq_auto', { threadId: id, result: 'fail', error: err.message });
+      }
+      return sendJson(res, 200, { ok: true, thread: sec.safePublicThread(threadOut) }, req);
     }
 
     // ---- Admin chat ----

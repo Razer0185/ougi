@@ -1,18 +1,50 @@
-# Free hosting (Render) — website + Discord bot
+# Railway hosting (website + Pro + Free bots)
 
-Your PC does **not** need to stay on. Render runs both on their servers.
+Live URL: `https://ougi-production.up.railway.app`
 
-## Limits (free tier)
-- Service **sleeps after ~15 minutes** with no website traffic — the Discord bot goes offline while asleep.
-- Opening the website URL wakes it (takes ~30–60s). For a bot that must stay online 24/7, upgrade later or use a always-on host.
+## Environment variables (Railway → Variables)
 
-## One-time setup
-1. Push this repo to GitHub.
-2. [render.com](https://render.com) → **New** → **Blueprint** → select the repo.
-3. In Render → Environment, add:
-   - `DISCORD_TOKEN` = contents of your local `token.txt` (never commit that file)
-   - `OUGI_SITE_ORIGIN` = `https://YOUR-SERVICE.onrender.com`
-   - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` (optional, for Google login)
-   - `OUGI_CHAT_SECRET` = a strong admin password for staff chat
-4. Update Google OAuth origins/redirects to the Render URL.
-5. Optional: use a free uptime pinger (e.g. UptimeRobot) hitting `https://YOUR-SERVICE.onrender.com/api/health` every 5 minutes to reduce sleep.
+Required:
+- `DISCORD_TOKEN` — Pro / paid bot
+- `DISCORD_TOKEN_FREE` — Free / TikTok trial bot
+- `OUGI_SITE_ORIGIN` — `https://ougi-production.up.railway.app`
+- `OUGI_SITE_HOST` — `0.0.0.0`
+
+Recommended:
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
+- `STRIPE_PUBLISHABLE_KEY` / `STRIPE_SECRET_KEY` (card checkout)
+- `OUGI_CHAT_SECRET` — staff inbox password
+- `OUGI_DISCORD_INVITE` — used by support FAQ auto-replies
+
+Sync from local `.env` (never prints values):
+
+```bash
+node scripts/sync-railway-secrets.js
+```
+
+## Discord token reset (do this when ready)
+
+If a token was ever shown in logs/CLI:
+
+1. [Discord Developer Portal](https://discord.com/developers/applications) → your app → **Bot** → **Reset Token**
+2. Put the new token only in local `token.txt` (Pro) and/or `token-free.txt` (Free)
+3. Push to Railway via stdin (do not paste into chat):
+
+```powershell
+Get-Content token.txt -Raw | npx @railway/cli@latest variable set DISCORD_TOKEN --stdin --service ougi
+Get-Content token-free.txt -Raw | npx @railway/cli@latest variable set DISCORD_TOKEN_FREE --stdin --service ougi
+```
+
+## Google OAuth
+
+Authorized JavaScript origins:
+- `https://ougi-production.up.railway.app`
+- `http://127.0.0.1:5050`
+
+Authorized redirect URIs:
+- `https://ougi-production.up.railway.app/api/account/google/callback`
+- `http://127.0.0.1:5050/api/account/google/callback`
+
+## Support FAQ auto-replies
+
+Buyer chat auto-answers keywords like “where can I buy”, “activate”, “invite the bot” via `website/chat-faq.js`.
