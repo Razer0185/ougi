@@ -114,8 +114,12 @@ namespace OugiUnlock
                 var root = doc.RootElement;
                 if (!res.IsSuccessStatusCode || !root.TryGetProperty("ok", out var okEl) || !okEl.GetBoolean())
                 {
-                    var msg = root.TryGetProperty("message", out var m) ? m.GetString() : raw;
-                    throw new Exception(msg || ("Unlock failed (" + (int)res.StatusCode + ")"));
+                    string? msg = null;
+                    if (root.TryGetProperty("message", out var m) && m.ValueKind == JsonValueKind.String)
+                        msg = m.GetString();
+                    if (string.IsNullOrWhiteSpace(msg))
+                        msg = "Unlock failed (" + (int)res.StatusCode + ")";
+                    throw new Exception(msg);
                 }
 
                 var keyB64 = root.GetProperty("key").GetString()
