@@ -581,13 +581,19 @@ async function ensureEmptyEndCategory(guild) {
   }
 
   // Prefer: … → Support → End → (Ougi / other). Never leave Support under End.
-  const supportCat = [...guild.channels.cache.values()].find(
+  let supportCat = [...guild.channels.cache.values()].find(
     (c) =>
       c.type === ChannelType.GuildCategory &&
       /\bsupport\b/i.test(c.name) &&
       c.id !== endCat.id &&
       !/^╰─+/i.test(c.name)
   );
+  if (supportCat) {
+    const want = supportCategoryNameForGuild(guild);
+    if (supportCat.name !== want) {
+      await supportCat.setName(want).catch(() => {});
+    }
+  }
   const ougiCat = [...guild.channels.cache.values()].find(
     (c) => c.type === ChannelType.GuildCategory && /\bougi\b/i.test(c.name) && c.id !== endCat.id
   );
