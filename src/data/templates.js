@@ -389,7 +389,7 @@ const SERVER_TEMPLATES = [
         ],
       },
       {
-        name: '╰──── End 🔚',
+        name: '╰──── End 🔚 ˅',
         channels: [],
         footer: true,
       },
@@ -445,7 +445,7 @@ const SERVER_TEMPLATES = [
         ],
       },
       {
-        name: '╰──── End 🔚',
+        name: '╰──── End 🔚 ˅',
         channels: [],
         footer: true,
       },
@@ -501,7 +501,7 @@ const SERVER_TEMPLATES = [
         ],
       },
       {
-        name: '╰──── End 🔚',
+        name: '╰──── End 🔚 ˅',
         channels: [],
         footer: true,
       },
@@ -557,7 +557,7 @@ const SERVER_TEMPLATES = [
         ],
       },
       {
-        name: '╰──── End 🔚',
+        name: '╰──── End 🔚 ˅',
         channels: [],
         footer: true,
       },

@@ -8,7 +8,7 @@ const {
 const { baseEmbed } = require('../utils/embeds');
 const { loadGuild, saveGuild } = require('../utils/store');
 
-const END_CATEGORY_NAME = '╰──── End 🔚';
+const END_CATEGORY_NAME = '╰──── End 🔚 ˅';
 
 function styleFromTemplateId(id) {
   const s = String(id || '').toLowerCase();
@@ -533,7 +533,7 @@ function templatePreviewEmbed(guildId, kind, template) {
 }
 
 /**
- * Keep an empty ╰──── End 🔚 category at the bottom (after Support when present).
+ * Keep an empty ╰──── End 🔚 ˅ category at the bottom (after Support when present).
  */
 async function ensureEmptyEndCategory(guild) {
   const categories = [...guild.channels.cache.values()]
@@ -550,7 +550,8 @@ async function ensureEmptyEndCategory(guild) {
     (c) =>
       /^╰─+\s*end\b/i.test(c.name) ||
       /^╰─+\s*$/i.test(c.name.trim()) ||
-      c.name === END_CATEGORY_NAME
+      c.name === END_CATEGORY_NAME ||
+      c.name === '╰──── End 🔚'
   );
   if (!endCat) {
     endCat = await guild.channels.create({

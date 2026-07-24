@@ -284,7 +284,7 @@ function templateHomePayload(guildId) {
           'Pick what you want to build:\n\n' +
           '→ **Channels & Categories** — full server layouts (community, aesthetic ★, gaming…)\n' +
           '→ **Roles** — staff ladders and rank packs\n' +
-          '→ **Fix End Closer** — put `╰──── End 🔚` at the bottom\n\n' +
+          '→ **Fix End Closer** — put `╰──── End 🔚 ˅` at the bottom\n\n' +
           'Then choose a template from the dropdown.',
       }),
     ],
