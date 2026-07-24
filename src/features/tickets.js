@@ -24,15 +24,10 @@ function formatTicketChannelName(panel, num) {
   return `${emoji}・${base}`;
 }
 
-/** Buyer / priority tickets: priority-ticket-623 (no emoji fluff). */
-function formatPriorityTicketChannelName(panel, counter) {
-  const prefix = String(panel?.prefix || 'ticket')
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-]/g, '')
-    .slice(0, 40) || 'ticket';
+/** Buyer priority channels always: priority-ticket-623 */
+function formatPriorityTicketChannelName(_panel, counter) {
   const n = String(Number(counter) || counter).replace(/^0+(?=\d)/, '') || '0';
-  return `priority-${prefix}-${n}`.slice(0, 100);
+  return `priority-ticket-${n}`.slice(0, 100);
 }
 
 function parseStyle(raw) {
@@ -201,7 +196,9 @@ async function openTicket(interaction, panelId) {
     type: ChannelType.GuildText,
     parent: category.id,
     permissionOverwrites: overwrites,
-    topic: `${priority ? 'PRIORITY · ' : ''}${panel.label} · ${interaction.user.tag} · #${counter}`,
+    topic: priority
+      ? `🏷️ PRIORITY TICKET · #${counter} · ${interaction.user.tag}`
+      : `Ticket · #${counter} · ${interaction.user.tag}`,
     reason: priority ? 'Ougi priority ticket opened (buyer)' : 'Ougi ticket opened',
   });
 
@@ -217,18 +214,21 @@ async function openTicket(interaction, panelId) {
     number: num,
     counter,
     priority: !!priority,
+    label: priority ? 'PRIORITY' : 'TICKET',
     openedAt: Date.now(),
     claimedBy: null,
   };
   saveGuild(guild.id, cfg);
 
   const embed = baseEmbed(guild.id, {
-    title: priority ? `Priority · ${panel.label}` : panel.label,
+    title: priority ? `${panel.label}` : panel.label,
     description: `Hey ${interaction.user} — describe your issue below.\nStaff will reply here.`,
-    footer: priority ? `Priority · #${counter}` : `#${counter}`,
+    footer: priority ? `PRIORITY TICKET · #${counter}` : `Ticket · #${counter}`,
   });
+  // Visible label for staff/sidebar: priority channels get a clear PRIORITY tag line
+  const ping = `${interaction.user}${cfg.tickets.supportRoleId ? ` · <@&${cfg.tickets.supportRoleId}>` : ''}`;
   await ticketChannel.send({
-    content: `${interaction.user}${cfg.tickets.supportRoleId ? ` · <@&${cfg.tickets.supportRoleId}>` : ''}`,
+    content: priority ? `🏷️ **PRIORITY TICKET** · #${counter}\n${ping}` : ping,
     embeds: [embed],
     components: [ticketControls(guild.id)],
   });
