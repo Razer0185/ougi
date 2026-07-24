@@ -16,9 +16,9 @@ const {
   clearCookie,
 } = require('./security');
 
-const ROOT = path.join(__dirname, '..');
-const USERS_PATH = path.join(ROOT, 'data', 'users.json');
-const USER_SESSIONS_PATH = path.join(ROOT, 'data', 'user-sessions.json');
+const { dataFile } = require('../src/utils/data-paths');
+const USERS_PATH = dataFile('users.json');
+const USER_SESSIONS_PATH = dataFile('user-sessions.json');
 const COOKIE_USER = 'ougi_user_sid';
 const SESSION_TTL_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
 const BCRYPT_ROUNDS = 12;
@@ -321,6 +321,7 @@ module.exports = {
   requireUser,
   publicUser,
   getById,
+  findByEmail,
   deleteAccount,
   exportUserData,
   ensure,

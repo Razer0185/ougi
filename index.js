@@ -7,7 +7,7 @@ const {
   Partials,
   ActivityType,
 } = require('discord.js');
-const { loadGuild, ensureDirs, getGuildPrefix } = require('./src/utils/store');
+const { loadGuild, ensureDirs, getGuildPrefix, getCommandPrefixes } = require('./src/utils/store');
 const { commands, createPanel } = require('./src/commands');
 const { handleInteraction } = require('./src/handlers/interactions');
 const { registerSlashCommands } = require('./src/slash/register');
@@ -21,7 +21,7 @@ const {
   setAvatarFromAttachment,
   setBannerFromAttachment,
 } = require('./src/features/profile');
-const { memberHasAdmin } = require('./src/utils/helpers');
+const { memberHasAdmin, parseDuration } = require('./src/utils/helpers');
 const {
   cacheGuildInvites,
   syncInviteToCache,
@@ -37,7 +37,14 @@ const {
   resumeGiveaways,
 } = require('./src/features/giveaways');
 const { resumeReminders } = require('./src/features/reminders');
-const { handleMessageXp } = require('./src/features/levels');
+const { handleMessageXp, handleVoiceXp } = require('./src/features/levels');
+const { handleRaidJoin } = require('./src/features/antiraid');
+const { resumeSchedules } = require('./src/features/schedule');
+const { resumeTempRoles } = require('./src/features/temproles');
+const { resumeTempBans } = require('./src/features/moderation');
+const { buildWelcomeCard } = require('./src/features/welcome-card');
+const { cacheDelete, cacheEdit } = require('./src/features/snipe');
+const store = require('./src/utils/store');
 const { handleAfkMessage } = require('./src/features/afk');
 const { maybeAutorespond } = require('./src/features/autoresponder');
 const { refreshSticky } = require('./src/features/sticky');
@@ -53,7 +60,15 @@ const {
   logMessageUpdate,
   logMemberJoinDetail,
   logMemberLeaveDetail,
+  logGuildBanAdd,
+  logGuildBanRemove,
+  logGuildMemberUpdate,
+  logVoiceState,
+  logChannelCreate,
+  logChannelDelete,
+  logChannelUpdate,
 } = require('./src/features/logging');
+const { onMemberJoinVerify } = require('./src/features/verify');
 
 function readToken() {
   const fromEnv = String(
@@ -110,8 +125,8 @@ function buildIntents(mode) {
   return intents;
 }
 
-/** Pull command body from guild prefix OR @bot mention. */
-function extractCommandBody(message, prefix) {
+/** Pull command body from guild/common prefixes OR @bot mention. */
+function extractCommandBody(message, prefixes) {
   const content = (message.content || '').trim();
   if (!content) return null;
 
@@ -125,12 +140,21 @@ function extractCommandBody(message, prefix) {
     }
   }
 
-  if (!prefix) return null;
+  const list = Array.isArray(prefixes) ? prefixes : [prefixes].filter(Boolean);
+  for (const prefix of list) {
+    if (!prefix) continue;
+    if (content.startsWith(prefix)) {
+      const rest = content.slice(prefix.length).replace(/^\s+/, '');
+      // Require a command name after the prefix (skip lone symbols)
+      if (rest && /^[\p{L}\p{N}_]/u.test(rest)) return rest;
+    }
+  }
 
-  // Exact prefix at start (supports "!help" and "! help")
-  if (content.startsWith(prefix)) {
-    const rest = content.slice(prefix.length).replace(/^\s+/, '');
-    return rest || null;
+  // Fallback: any leading punctuation (1–5 chars) then a command word
+  // e.g. `help  ]ban  =theme red  \ping
+  const punct = content.match(/^([^\p{L}\p{N}\s]{1,5})\s*([\p{L}\p{N}_].*)$/u);
+  if (punct) {
+    return punct[2];
   }
 
   return null;
@@ -184,9 +208,16 @@ client.once('clientReady', async () => {
   } = require('./src/utils/access');
 
   // Whitelist servers you're already in so private mode doesn't kick you out
-  seedAllowedGuilds([...client.guilds.cache.keys()]);
+  if (process.env.OUGI_PC_AGENT === '1') {
+    console.log('PC Host agent mode — customer bot instance (license-gated).');
+  } else if (process.env.OUGI_EDITION === 'free') {
+    console.log('FREE edition — public invites OK; trials + promo events enabled.');
+  } else {
+    seedAllowedGuilds([...client.guilds.cache.keys()]);
+  }
 
-  if (isPrivateMode()) {
+  const freeMode = process.env.OUGI_EDITION === 'free' || process.env.OUGI_FORCE_PUBLIC === '1';
+  if (isPrivateMode() && process.env.OUGI_PC_AGENT !== '1' && !freeMode) {
     for (const [, guild] of client.guilds.cache) {
       if (!isGuildAllowed(guild.id)) {
         console.warn(`Leaving unauthorized server: ${guild.name} (${guild.id})`);
@@ -198,9 +229,63 @@ client.once('clientReady', async () => {
     );
   }
 
+  if (freeMode) {
+    try {
+      const freeBot = require('./src/features/free-bot');
+      freeBot.startFreeBotLoops(client);
+      for (const [, guild] of client.guilds.cache) {
+        freeBot.trackGuild(guild);
+        await freeBot.ensurePromoEvent(guild).catch(() => {});
+      }
+      try {
+        client.user.setPresence({
+          activities: [{ name: 'Ougi Free · upgrade for Pro', type: ActivityType.Playing }],
+          status: 'online',
+        });
+      } catch {
+        /* ignore */
+      }
+    } catch (err) {
+      console.warn('Free bot init:', err.message);
+    }
+  }
+
   const inviteInfo = writeInviteFile(__dirname, client.user.id);
-  if (inviteInfo?.url && !isPrivateMode()) {
-    console.log(`\nAdd Ougi to a server:\n${inviteInfo.url}\n`);
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const dataDir = path.join(__dirname, 'data');
+    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+    fs.writeFileSync(path.join(dataDir, 'bot-client-id.txt'), String(client.user.id), 'utf8');
+  } catch (err) {
+    console.warn('Could not write bot-client-id.txt:', err.message);
+  }
+
+  // Expire unpaid / past-due hosted seats
+  try {
+    const { revokeExpired } = require('./src/utils/subscriptions');
+    const revoked = revokeExpired();
+    if (revoked.length) console.log(`Revoked ${revoked.length} expired subscription(s)`);
+    setInterval(() => {
+      try {
+        const gone = revokeExpired();
+        for (const gid of gone) {
+          const g = client.guilds.cache.get(gid);
+          if (g) {
+            console.warn(`Leaving expired server: ${g.name} (${gid})`);
+            g.leave().catch(() => {});
+          }
+        }
+      } catch (err) {
+        console.error('Subscription sweep failed:', err.message);
+      }
+    }, 15 * 60 * 1000).unref?.();
+  } catch (err) {
+    console.warn('Subscriptions module:', err.message);
+  }
+
+  if (inviteInfo?.url && (!isPrivateMode() || freeMode)) {
+    console.log(`\nAdd Ougi${freeMode ? ' FREE' : ''} to a server:\n${inviteInfo.url}\n`);
   } else if (isPrivateMode()) {
     console.log('\nPrivate mode: use Host → Access, or `.access allow <serverId>`, then `.invite`.\n');
     console.log(`Owner invite file (do not share publicly): ${inviteInfo?.file || 'invite-url.txt'}\n`);
@@ -248,51 +333,28 @@ To enable "." prefix commands:
     console.error('Reminder resume failed:', err.message);
   }
 
+  try {
+    await resumeSchedules(client);
+  } catch (err) {
+    console.error('Schedule resume failed:', err.message);
+  }
+
+  try {
+    await resumeTempRoles(client);
+  } catch (err) {
+    console.error('Temp role resume failed:', err.message);
+  }
+  try {
+    resumeTempBans(client);
+  } catch (err) {
+    console.error('Tempban resume failed:', err.message);
+  }
+
   for (const [, guild] of client.guilds.cache) {
     try {
       await cacheGuildInvites(guild);
-      const cfg = loadGuild(guild.id);
-      if (!cfg.panelChannelId || !guild.channels.cache.get(cfg.panelChannelId)) {
-        await createPanel(guild, client);
-        console.log(`Control panel ready in ${guild.name}`);
-      } else {
-        const { panelEmbed } = require('./src/utils/embeds');
-        const { panelComponents } = require('./src/ui/components');
-        const ch = guild.channels.cache.get(cfg.panelChannelId);
-        if (ch && ch.name !== '✨・ougi') {
-          await ch.setName('✨・ougi').catch(() => {});
-        }
-        if (ch?.parent && ch.parent.name !== '╭─── Ougi ✨ ˅') {
-          if (/nexus|example|ougi/i.test(ch.parent.name) || ch.parent.name.includes('╭')) {
-            await ch.parent.setName('╭─── Ougi ✨ ˅').catch(() => {});
-          }
-        }
-        if (ch) {
-          const everyone = guild.roles.everyone.id;
-          await ch.permissionOverwrites
-            .edit(everyone, { ViewChannel: false, SendMessages: false })
-            .catch(() => {});
-          if (ch.parent) {
-            await ch.parent.permissionOverwrites
-              .edit(everyone, { ViewChannel: false })
-              .catch(() => {});
-          }
-          await ch
-            .setTopic('Ougi control panel — admins only')
-            .catch(() => {});
-        }
-        const msg = cfg.panelMessageId && (await ch.messages.fetch(cfg.panelMessageId).catch(() => null));
-        if (msg) {
-          await msg.edit({
-            embeds: [panelEmbed(guild.id, client, 0)],
-            components: panelComponents(guild.id, 0),
-          });
-          console.log(`Control panel refreshed in ${guild.name}`);
-        } else {
-          await createPanel(guild, client);
-          console.log(`Control panel recreated in ${guild.name}`);
-        }
-      }
+      await createPanel(guild, client);
+      console.log(`Control panel ready in ${guild.name}`);
       try {
         const { syncThemeAdminRoles } = require('./src/features/theme-roles');
         await syncThemeAdminRoles(guild);
@@ -307,8 +369,9 @@ To enable "." prefix commands:
 
 client.on('guildCreate', async (guild) => {
   try {
+    const freeMode = process.env.OUGI_EDITION === 'free' || process.env.OUGI_FORCE_PUBLIC === '1';
     const { isGuildAllowed, isPrivateMode } = require('./src/utils/access');
-    if (isPrivateMode() && !isGuildAllowed(guild.id)) {
+    if (!freeMode && isPrivateMode() && !isGuildAllowed(guild.id)) {
       console.warn(`Blocked join (not whitelisted): ${guild.name} (${guild.id})`);
       const owner = await guild.fetchOwner().catch(() => null);
       if (owner) {
@@ -324,17 +387,24 @@ client.on('guildCreate', async (guild) => {
       return;
     }
 
+    if (process.env.OUGI_EDITION === 'free') {
+      const freeBot = require('./src/features/free-bot');
+      await freeBot.onFreeGuildJoin(guild, client);
+    }
+
     await cacheGuildInvites(guild);
     await createPanel(guild, client);
-    try {
-      const { syncThemeAdminRoles } = require('./src/features/theme-roles');
-      const r = await syncThemeAdminRoles(guild);
-      console.log(
-        `Theme admin roles in ${guild.name}: created=${r.created} updated=${r.updated}` +
-          (r.skipped ? ` skipped=${r.skipped}` : '')
-      );
-    } catch (err) {
-      console.error(`Theme roles failed for ${guild.name}:`, err.message);
+    if (process.env.OUGI_EDITION !== 'free') {
+      try {
+        const { syncThemeAdminRoles } = require('./src/features/theme-roles');
+        const r = await syncThemeAdminRoles(guild);
+        console.log(
+          `Theme admin roles in ${guild.name}: created=${r.created} updated=${r.updated}` +
+            (r.skipped ? ` skipped=${r.skipped}` : '')
+        );
+      } catch (err) {
+        console.error(`Theme roles failed for ${guild.name}:`, err.message);
+      }
     }
     try {
       await registerSlashCommands(client);
@@ -389,18 +459,59 @@ client.on('messageReactionRemove', (reaction, user) => {
 });
 
 client.on('messageDelete', (message) => {
+  cacheDelete(message);
   logMessageDelete(message).catch(() => {});
 });
 
 client.on('messageUpdate', (oldMessage, newMessage) => {
+  cacheEdit(oldMessage, newMessage);
   logMessageUpdate(oldMessage, newMessage).catch(() => {});
 });
 
 client.on('voiceStateUpdate', (oldState, newState) => {
   handleVoiceState(oldState, newState).catch((err) => console.error('JTC error:', err.message));
+  logVoiceState(oldState, newState).catch(() => {});
+  handleVoiceXp(oldState, newState).catch((err) => console.error('Voice XP:', err.message));
+});
+
+client.on('guildBanAdd', (ban) => {
+  logGuildBanAdd(ban).catch(() => {});
+});
+
+client.on('guildBanRemove', (ban) => {
+  logGuildBanRemove(ban).catch(() => {});
+});
+
+client.on('guildMemberUpdate', (oldMember, newMember) => {
+  logGuildMemberUpdate(oldMember, newMember).catch(() => {});
+  try {
+    const { isFreeEdition } = require('./src/utils/edition');
+    if (isFreeEdition()) {
+      const freeBot = require('./src/features/free-bot');
+      freeBot.onFreeBotMemberUpdate(oldMember, newMember).catch(() => {});
+    }
+  } catch {
+    /* ignore */
+  }
+});
+
+client.on('channelCreate', (channel) => {
+  logChannelCreate(channel).catch(() => {});
+});
+client.on('channelDelete', (channel) => {
+  logChannelDelete(channel).catch(() => {});
+});
+client.on('channelUpdate', (oldChannel, newChannel) => {
+  logChannelUpdate(oldChannel, newChannel).catch(() => {});
 });
 
 client.on('guildMemberAdd', async (member) => {
+  try {
+    await handleRaidJoin(member);
+  } catch (err) {
+    console.error('Anti-raid:', err.message);
+  }
+
   try {
     const result = await handleMemberJoin(member);
     await sendJoinLog(member.guild, member, result);
@@ -412,6 +523,12 @@ client.on('guildMemberAdd', async (member) => {
     await applyAutoroles(member);
   } catch (err) {
     console.error('Autorole:', err.message);
+  }
+
+  try {
+    await onMemberJoinVerify(member);
+  } catch (err) {
+    console.error('Verify gate:', err.message);
   }
 
   try {
@@ -428,17 +545,34 @@ client.on('guildMemberAdd', async (member) => {
     .replaceAll('{user}', `${member}`)
     .replaceAll('{server}', member.guild.name)
     .replaceAll('{count}', String(member.guild.memberCount));
-  await channel
-    .send({
-      embeds: [
-        baseEmbed(member.guild.id, {
-          title: 'Welcome',
-          description: text,
-          thumbnail: member.user.displayAvatarURL({ size: 256 }),
-        }),
-      ],
-    })
-    .catch(() => {});
+
+  const payload = {
+    embeds: [
+      baseEmbed(member.guild.id, {
+        title: 'Welcome',
+        description: text,
+        thumbnail: member.user.displayAvatarURL({ size: 256 }),
+      }),
+    ],
+  };
+
+  if (cfg.welcome.card !== false) {
+    try {
+      const card = await buildWelcomeCard({
+        guild: member.guild,
+        member,
+        messageText: text.replace(/<@!?\d+>/g, member.displayName),
+      });
+      if (card) {
+        payload.files = [card];
+        payload.embeds[0].setImage('attachment://welcome.png');
+      }
+    } catch (err) {
+      console.error('Welcome card:', err.message);
+    }
+  }
+
+  await channel.send(payload).catch(() => {});
 });
 
 client.on('guildMemberRemove', async (member) => {
@@ -453,6 +587,25 @@ client.on('guildMemberRemove', async (member) => {
   } catch {
     /* ignore */
   }
+
+  const cfg = loadGuild(member.guild.id);
+  if (!cfg.goodbye?.enabled || !cfg.goodbye.channelId) return;
+  const channel = member.guild.channels.cache.get(cfg.goodbye.channelId);
+  if (!channel) return;
+  const text = (cfg.goodbye.message || '**{user}** left.')
+    .replaceAll('{user}', member.user?.tag || member.id)
+    .replaceAll('{server}', member.guild.name)
+    .replaceAll('{count}', String(member.guild.memberCount));
+  await channel
+    .send({
+      embeds: [
+        baseEmbed(member.guild.id, {
+          title: 'Goodbye',
+          description: text,
+        }),
+      ],
+    })
+    .catch(() => {});
 });
 
 client.on('messageCreate', async (message) => {
@@ -493,18 +646,53 @@ client.on('messageCreate', async (message) => {
 
   const cfg = loadGuild(message.guild.id);
 
+  // Honeypot decoy channel — punish before other message handlers
+  try {
+    const { handleHoneypotMessage } = require('./src/features/honeypot');
+    const pot = await handleHoneypotMessage(message, client);
+    if (pot?.caught) return;
+    if (pot && pot.caught === false) return;
+  } catch (err) {
+    console.error('Honeypot:', err.message);
+  }
+
   // Automod only when we can read content
   if (message.content) {
     const automodHit = checkAutomod(message, cfg);
     if (automodHit) {
+      const reason = typeof automodHit === 'string' ? automodHit : automodHit.reason;
+      const doPunish = typeof automodHit === 'object' ? automodHit.punish : true;
       await message.delete().catch(() => {});
       const warn = await message.channel
         .send({
           content: `${message.author}`,
-          embeds: [errorEmbed(message.guild.id, 'AutoMod', automodHit)],
+          embeds: [errorEmbed(message.guild.id, 'AutoMod', reason)],
         })
         .catch(() => null);
       if (warn) setTimeout(() => warn.delete().catch(() => {}), 5000);
+
+      if (doPunish && cfg.automod?.punish && cfg.automod.punish !== 'none') {
+        try {
+          const { muteMember, warnMember } = require('./src/features/moderation');
+          if (cfg.automod.punish === 'mute' && message.member) {
+            await muteMember(message.guild, {
+              target: message.member,
+              moderator: client.user,
+              reason: `AutoMod: ${reason}`,
+              durationMs: parseDuration(cfg.automod.punishDuration || '10m'),
+              store,
+            });
+          } else if (cfg.automod.punish === 'warn' && message.member) {
+            await warnMember(message.guild, {
+              target: message.member,
+              moderator: client.user,
+              reason: `AutoMod: ${reason}`,
+            });
+          }
+        } catch (err) {
+          console.error('AutoMod punish:', err.message);
+        }
+      }
       return;
     }
   }
@@ -514,17 +702,61 @@ client.on('messageCreate', async (message) => {
   await maybeAutorespond(message).catch(() => {});
   await refreshSticky(message).catch(() => {});
 
-  // Always read prefix fresh from disk so `.prefix !` applies immediately
+  // AI channel build follow-up (purpose / details) — before command parse
+  try {
+    const { handlePendingBuildReply } = require('./src/features/ai');
+    const handled = await handlePendingBuildReply(message);
+    if (handled) return;
+  } catch {
+    /* ignore */
+  }
+
+  // Accept guild prefix + common ones (. ! ? , ; - /) so theme/commands always work
   const prefix = getGuildPrefix(message.guild.id);
-  const body = extractCommandBody(message, prefix);
+  const prefixes = getCommandPrefixes(message.guild.id);
+  const body = extractCommandBody(message, prefixes);
   if (!body) return;
 
   const args = body.split(/\s+/).filter(Boolean);
   const name = (args.shift() || '').toLowerCase();
   if (!name) return;
+
+  const { isFreeCommandAllowed, isFreeEdition } = require('./src/utils/edition');
+  if (!isFreeCommandAllowed(name)) {
+    const { loadConfig } = require('./src/utils/edition');
+    const promo = loadConfig().promo || {};
+    await message
+      .reply({
+        embeds: [
+          errorEmbed(
+            message.guild.id,
+            'Ougi Free',
+            `**\`${name}\`** is Pro-only on this free trial bot.\n\n` +
+              `Discord: ${promo.discordInvite || '—'}\n` +
+              `Buy: ${promo.productUrl || '—'}`
+          ),
+        ],
+      })
+      .catch(() => {});
+    return;
+  }
+
+  if (name === 'free' && isFreeEdition()) {
+    const freeCmd = require('./src/commands/free-admin');
+    try {
+      await freeCmd.execute(message, args);
+    } catch (err) {
+      console.error('free cmd:', err);
+      await message
+        .reply({ embeds: [errorEmbed(message.guild.id, 'Free Admin', String(err.message || err))] })
+        .catch(() => {});
+    }
+    return;
+  }
+
   const command = commands[name];
   if (!command || command.skip) {
-    const ranCc = await tryCustomCommand(message, name, prefix).catch(() => false);
+    const ranCc = await tryCustomCommand(message, name).catch(() => false);
     if (ranCc) return;
     if (message.mentions.has(message.client.user)) {
       await message

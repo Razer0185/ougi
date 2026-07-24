@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ougi Host</title>
+  <meta http-equiv="Cache-Control" content="no-store" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="host-app.css?v=20260723noscroll" />
+</head>
+<body>
+  <div class="accent-bar" aria-hidden="true"></div>
+  <div class="bg-wash" aria-hidden="true"></div>
+  <div class="bg-grid" aria-hidden="true"></div>
+
+  <!-- Desktop-only custom titlebar (frameless window) -->
+  <header class="titlebar" id="titlebar" hidden>
+    <div class="titlebar-drag" id="titlebarDrag">
+      <span class="titlebar-brand">Ougi Host</span>
+      <span class="titlebar-hint" id="titlebarHint">PC</span>
+    </div>
+    <div class="titlebar-controls">
+      <button type="button" class="win-btn" id="btnWinMin" title="Minimize" aria-label="Minimize">─</button>
+      <button type="button" class="win-btn" id="btnWinMax" title="Maximize" aria-label="Maximize">□</button>
+      <button type="button" class="win-btn win-close" id="btnWinClose" title="Close" aria-label="Close">✕</button>
+    </div>
+  </header>
+
+  <!-- AUTH -->
+  <div id="viewAuth" class="shell auth-shell">
+    <header class="auth-head">
+      <div class="brand-mark">Ougi<span>.</span></div>
+      <p class="tag">PC Host · run your bot on this machine</p>
+      <p class="site-chip" id="siteChip">Connecting…</p>
+    </header>
+
+    <div class="auth-layout">
+      <section class="panel auth-panel rise">
+        <div class="tabs">
+          <button type="button" class="tab on" id="tabSignIn" data-mode="signin">Sign in</button>
+          <button type="button" class="tab" id="tabSignUp" data-mode="signup">Sign up</button>
+        </div>
+
+        <h1 class="panel-title" id="authTitle">Sign in</h1>
+        <p class="panel-sub" id="authSub">Same account as the Ougi website.</p>
+        <p class="err" id="authError" hidden></p>
+
+        <form id="authForm" autocomplete="on">
+          <label class="field">Email
+            <input id="email" name="email" type="email" required autocomplete="username" placeholder="you@example.com" />
+          </label>
+          <label class="field">Password
+            <span class="input-wrap">
+              <input id="password" name="password" type="password" required autocomplete="current-password" placeholder="••••••••••••" />
+              <button type="button" class="icon-btn" id="togglePass" aria-label="Show password">Show</button>
+            </span>
+          </label>
+          <p class="hint" id="passHint" hidden>Use 12+ characters with letters and numbers.</p>
+
+          <div id="signupExtra" hidden>
+            <label class="field">Display name
+              <input id="displayName" name="name" type="text" maxlength="80" autocomplete="name" placeholder="Ougi User" />
+            </label>
+            <label class="field">Discord username
+              <input id="discord" name="discord" type="text" maxlength="32" autocomplete="nickname" placeholder="ougi_user" />
+            </label>
+          </div>
+
+          <div class="row-between" id="signinExtras">
+            <label class="check"><input type="checkbox" id="rememberMe" checked /> Remember me</label>
+            <a class="link" href="account.html" target="_blank" rel="noopener">Forgot password?</a>
+          </div>
+
+          <button class="btn primary block" type="submit" id="authSubmit">Sign in</button>
+          <button class="btn ghost block" type="button" id="authSwitch">Create account</button>
+        </form>
+      </section>
+
+      <aside class="panel log-panel rise delay">
+        <div class="log-head">
+          <span>Activity</span>
+          <button type="button" class="link tiny" id="clearLogAuth">Clear</button>
+        </div>
+        <pre class="log" id="logAuth"></pre>
+      </aside>
+    </div>
+  </div>
+
+  <!-- DASH -->
+  <div id="viewDash" class="shell dash-shell" hidden>
+    <header class="dash-top">
+      <div>
+        <div class="brand-mark sm">Ougi Host<span>.</span></div>
+        <p class="who" id="whoLabel">Signed in</p>
+      </div>
+      <div class="top-right">
+        <span class="chip" id="statusChip">—</span>
+        <button type="button" class="btn ghost tiny" id="btnLogout">Log out</button>
+      </div>
+    </header>
+
+    <section class="panel plan-panel rise">
+      <div class="plan-grid">
+        <div>
+          <h2 class="panel-title" id="planName">No active plan</h2>
+          <p class="panel-sub" id="planMeta">Buy a License plan to run the bot on this PC.</p>
+          <div class="meta-row">
+            <div class="meta"><span>Mode</span><strong id="planMode">—</strong></div>
+            <div class="meta"><span>Status</span><strong id="planStatus">—</strong></div>
+            <div class="meta"><span>Expires</span><strong id="planExpires">—</strong></div>
+          </div>
+        </div>
+        <div class="plan-visual" aria-hidden="true">
+          <div class="cube">Ougi</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel rise delay">
+      <label class="field">Your Discord bot token
+        <span class="input-wrap">
+          <input id="botToken" type="password" autocomplete="off" placeholder="Paste token from discord.com/developers" />
+          <button type="button" class="icon-btn" id="toggleToken" aria-label="Show token">Show</button>
+        </span>
+      </label>
+      <p class="hint">Create your own bot in the Discord Developer Portal — never paste our token.</p>
+
+      <div class="actions">
+        <button type="button" class="btn primary" id="btnStart">▶ Start bot on this PC</button>
+        <button type="button" class="btn ghost" id="btnStop">■ Stop</button>
+        <a class="btn ghost" href="pricing.html" target="_blank" rel="noopener">Buy / renew</a>
+        <a class="btn ghost" href="host.html" target="_blank" rel="noopener">Web dashboard ↗</a>
+      </div>
+      <div class="actions secondary">
+        <button type="button" class="btn ghost tiny" id="btnGrant">Dev: grant PC month</button>
+      </div>
+      <p class="err" id="dashError" hidden></p>
+    </section>
+
+    <section class="panel log-panel rise delay2">
+      <div class="log-head">
+        <span>Activity</span>
+        <button type="button" class="link tiny" id="clearLogDash">Clear</button>
+      </div>
+      <pre class="log" id="logDash"></pre>
+    </section>
+  </div>
+
+  <script src="host-app.js?v=20260723frame"></script>
+</body>
+</html>

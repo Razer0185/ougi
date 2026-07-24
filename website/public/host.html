@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Host — Ougi</title>
+  <link rel="stylesheet" href="styles.css?v=20260723vis" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="logo" href="index.html">Ougi<span>.</span></a>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="pricing.html">Prices</a>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="pay.html">Pay</a>
+      <a class="on" href="host.html">Host</a>
+      <a href="account.html">Account</a>
+    </nav>
+    <div class="topbar-actions">
+      <button class="theme-toggle" type="button" data-theme-toggle><span data-theme-label>Light</span></button>
+      <a class="btn primary tiny" href="pay.html">Pay</a>
+    </div>
+  </header>
+
+  <main class="shell">
+    <h1 class="page-title">Host your bot</h1>
+    <p class="page-sub">
+      Same login as your Ougi account. We run Ougi for you — you never download the source.
+      Pay → activate your Discord server → invite the bot.
+    </p>
+
+    <div id="needLogin" class="block" hidden>
+      <h2>Sign in required</h2>
+      <p class="muted">Use the same account you use for checkout.</p>
+      <a class="btn primary" href="account.html?next=host.html">Log in / Sign up</a>
+    </div>
+
+    <div id="hostPanel" hidden>
+      <div class="block">
+        <h2>Account</h2>
+        <div class="receipt-meta">
+          <div><span>Name</span><strong id="hName">—</strong></div>
+          <div><span>Email</span><strong id="hEmail">—</strong></div>
+          <div><span>Discord</span><strong id="hDiscord">—</strong></div>
+        </div>
+      </div>
+
+      <div class="block">
+        <h2>Plan</h2>
+        <div class="receipt-meta">
+          <div><span>Status</span><strong id="hStatus">—</strong></div>
+          <div><span>Plan</span><strong id="hPlan">—</strong></div>
+          <div><span>Expires</span><strong id="hExpires">—</strong></div>
+          <div><span>Server ID</span><strong id="hGuild">—</strong></div>
+        </div>
+        <p class="note" id="hHint" style="margin-top:12px"></p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
+          <a class="btn ghost" href="pay.html" id="payLink">Checkout / renew</a>
+          <a class="btn primary" href="dashboard.html">Configure bot</a>
+          <button class="btn ghost" type="button" id="devGrantBtn" hidden>Dev: grant 1 month</button>
+        </div>
+      </div>
+
+      <div class="block" id="activateBlock">
+        <h2>Activate hosting</h2>
+        <p class="muted">
+          Enable Developer Mode in Discord → right-click your server → Copy Server ID.
+          Then click Activate. We whitelist that server on our hosted Ougi.
+        </p>
+        <label class="field">Discord server ID
+          <input id="guildInput" type="text" inputmode="numeric" pattern="\d*" maxlength="20" placeholder="123456789012345678" autocomplete="off" />
+        </label>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
+          <button class="btn primary" type="button" id="activateBtn">Activate hosting</button>
+          <button class="btn ghost" type="button" id="deactivateBtn">Deactivate</button>
+        </div>
+        <p class="status" id="hostStatus"></p>
+      </div>
+
+      <div class="block" id="inviteBlock" hidden>
+        <h2>Invite Ougi</h2>
+        <p class="muted">After activate, add our bot to that server with this link (private — don’t post publicly).</p>
+        <p><a class="btn primary" id="inviteLink" href="#" target="_blank" rel="noopener">Open bot invite</a></p>
+        <p class="note" id="inviteMissing" hidden>Invite link missing — start the Discord bot once so it writes the client id.</p>
+      </div>
+    </div>
+  </main>
+
+  <footer class="foot">
+    <strong>Ougi</strong>
+    <span><a href="account.html">Account</a> · <a href="pricing.html">Prices</a></span>
+  </footer>
+
+  <script src="config.js?v=20260723vis"></script>
+  <script src="theme.js?v=20260723vis"></script>
+  <script src="site.js?v=20260723vis"></script>
+  <script src="host.js?v=20260723vis"></script>
+</body>
+</html>

@@ -23,7 +23,7 @@ function interfaceEmbed(guildId, template, pageIndex, total) {
   const file = findPreviewFile(template.id);
   const embed = new EmbedBuilder()
     .setColor(template.color)
-    .setAuthor({ name: 'Ougi' })
+    .setAuthor({ name: `${template.emoji} ★ Ougi · ${template.label}` })
     .setTitle(`Interface · ${template.label}`)
     .setDescription(
       active

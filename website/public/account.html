@@ -4,16 +4,18 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Account — Ougi</title>
-  <link rel="stylesheet" href="styles.css?v=20260723h" />
+  <link rel="stylesheet" href="styles.css?v=20260723vis" />
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
   <header class="topbar">
-    <a class="logo" href="index.html">Ougi</a>
+    <a class="logo" href="index.html">Ougi<span>.</span></a>
     <nav>
       <a href="index.html">Home</a>
       <a href="pricing.html">Prices</a>
+      <a href="dashboard.html">Dashboard</a>
       <a href="pay.html">Pay</a>
+      <a href="host.html">Host</a>
       <a class="on" href="account.html">Account</a>
     </nav>
     <div class="topbar-actions">
@@ -23,7 +25,7 @@
 
   <main class="auth-shell" id="authMain">
     <h1 class="page-title" id="pageHeading">Account</h1>
-    <p class="page-sub" id="pageSub">Sign in to checkout, receipts, and support chat.</p>
+    <p class="page-sub" id="pageSub">Sign in once for checkout, hosting dashboard, and support.</p>
 
     <div id="authGate" class="auth-panel block">
       <h2 id="authTitle">Log in</h2>
@@ -71,7 +73,9 @@
         <div><span>Sign-in</span><strong id="meAuth">—</strong></div>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;justify-content:center">
-        <a class="btn primary" id="goPay" href="pay.html">Checkout</a>
+        <a class="btn primary" id="goHost" href="host.html">Host dashboard</a>
+        <a class="btn ghost" href="dashboard.html">Configure bot</a>
+        <a class="btn ghost" id="goPay" href="pay.html">Checkout</a>
         <button class="btn ghost" type="button" id="logoutBtn">Log out</button>
         <button class="btn ghost tiny" type="button" id="exportBtn">Export data</button>
       </div>
@@ -94,9 +98,9 @@
     <span><a href="pay.html">Pay</a></span>
   </footer>
 
-  <script src="config.js?v=20260723h"></script>
-  <script src="theme.js?v=20260723h"></script>
-  <script src="site.js?v=20260723h"></script>
-  <script src="account.js?v=20260723h"></script>
+  <script src="config.js?v=20260723vis"></script>
+  <script src="theme.js?v=20260723vis"></script>
+  <script src="site.js?v=20260723vis"></script>
+  <script src="account.js?v=20260723vis"></script>
 </body>
 </html>

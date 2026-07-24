@@ -24,11 +24,16 @@ const {
   channelPick,
   lockChannelPick,
   templateSelect,
+  templateHomePayload,
+  templatePickPayload,
+  templateHomeComponents,
+  templateApplyComponents,
   panelComponents,
 } = require('../ui/components');
 const { helpEmbed, HELP_PAGES, createPanel } = require('../commands');
 const { THEMES } = require('../utils/theme');
-const { ticketCreateModal, postTicketPanel, openTicket, closeTicket } = require('../features/tickets');
+const { ticketCreateModal, postTicketPanel, openTicket, closeTicket, claimTicket } = require('../features/tickets');
+const { handleVerifyButton, setupVerify } = require('../features/verify');
 const {
   SERVER_TEMPLATES,
   ROLE_TEMPLATES,
@@ -112,6 +117,52 @@ async function handleInteraction(interaction) {
 async function handleButton(interaction) {
   const id = interaction.customId;
 
+  if (id.startsWith('aibuild:')) {
+    const { handleAiBuildButton } = require('../features/ai');
+    return handleAiBuildButton(interaction);
+  }
+
+  if (id.startsWith('template:menu:')) {
+    if (!(await requireAdmin(interaction))) return;
+    const { isFreeEdition } = require('../utils/edition');
+    const sub = id.split(':')[2];
+    if (sub === 'roles' && isFreeEdition()) {
+      return interaction.update(templateHomePayload(interaction.guild.id));
+    }
+    if (sub === 'home') {
+      return interaction.update(templateHomePayload(interaction.guild.id));
+    }
+    if (sub === 'server' || sub === 'roles') {
+      return interaction.update(templatePickPayload(interaction.guild.id, sub));
+    }
+    if (sub === 'end') {
+      const { ensureEmptyEndCategory } = require('../features/templates');
+      await interaction.deferUpdate().catch(() => {});
+      try {
+        const result = await ensureEmptyEndCategory(interaction.guild);
+        const moved =
+          result.movedChannels.length > 0
+            ? `\nMoved out from under end: ${result.movedChannels.map((n) => `\`${n}\``).join(', ')}`
+            : '\nNo channels were under the end category.';
+        return interaction.followUp({
+          embeds: [
+            successEmbed(
+              interaction.guild.id,
+              'End Closer Fixed',
+              `Empty **${result.endCategory}** is at the bottom.${moved}`
+            ),
+          ],
+          ephemeral: true,
+        });
+      } catch (err) {
+        return interaction.followUp({
+          embeds: [errorEmbed(interaction.guild.id, 'End Closer', err.message || 'Failed.')],
+          ephemeral: true,
+        });
+      }
+    }
+  }
+
   if (id === 'help:noop') {
     return interaction.deferUpdate();
   }
@@ -147,21 +198,44 @@ async function handleButton(interaction) {
   }
 
   if (id === 'panelnav:noop') {
-    if (!(await requireAdmin(interaction))) return;
-    return interaction.deferUpdate();
+    return interaction.deferUpdate().catch(() => {});
   }
   if (id.startsWith('panelnav:prev:') || id.startsWith('panelnav:next:')) {
-    if (!(await requireAdmin(interaction))) return;
+    // Single-shot update is snappier than defer + editReply for page flips
+    if (!memberHasAdmin(interaction.member)) {
+      return interaction
+        .reply({
+          embeds: [errorEmbed(interaction.guild.id, 'Denied', 'Administrator required.')],
+          ephemeral: true,
+        })
+        .catch(() => {});
+    }
     const parts = id.split(':');
     const dir = parts[1];
     const page = Number(parts[2]);
     const { PANEL_PAGES } = require('../ui/components');
     const next = dir === 'next' ? page + 1 : page - 1;
-    if (next < 0 || next >= PANEL_PAGES.length) return interaction.deferUpdate();
-    return interaction.update({
-      embeds: [panelEmbed(interaction.guild.id, interaction.client, next)],
-      components: panelComponents(interaction.guild.id, next),
-    });
+    if (next < 0 || next >= PANEL_PAGES.length) {
+      return interaction.deferUpdate().catch(() => {});
+    }
+    try {
+      return await interaction.update({
+        embeds: [panelEmbed(interaction.guild.id, interaction.client, next)],
+        components: panelComponents(interaction.guild.id, next),
+      });
+    } catch (err) {
+      console.error('Panel nav failed:', err.message);
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.deferUpdate().catch(() => {});
+      }
+      await interaction
+        .followUp({
+          embeds: [errorEmbed(interaction.guild.id, 'Panel', 'Could not turn the page. Try `.panel` to refresh.')],
+          ephemeral: true,
+        })
+        .catch(() => {});
+    }
+    return;
   }
 
   if (id === 'iface:noop') {
@@ -178,30 +252,22 @@ async function handleButton(interaction) {
   }
   if (id.startsWith('iface:apply:')) {
     if (!(await requireAdmin(interaction))) return;
+    await interaction.deferReply({ ephemeral: true });
     const themeId = id.split(':')[2];
     const { applyThemeAndSyncRoles } = require('../features/theme-roles');
     await applyThemeAndSyncRoles(interaction.guild, themeId);
-    const cfg = loadGuild(interaction.guild.id);
-    if (cfg.panelChannelId && cfg.panelMessageId) {
-      const ch = interaction.guild.channels.cache.get(cfg.panelChannelId);
-      const msg = ch && (await ch.messages.fetch(cfg.panelMessageId).catch(() => null));
-      if (msg) {
-        await msg.edit({
-          embeds: [panelEmbed(interaction.guild.id, interaction.client, 0)],
-          components: panelComponents(interaction.guild.id, 0),
-        });
-      }
-    }
+    await createPanel(interaction.guild, interaction.client, { skipThemeRoles: true }).catch((err) => {
+      console.error('Theme panel refresh failed:', err.message);
+    });
     const t = INTERFACE_TEMPLATES.find((x) => x.id === themeId);
-    return interaction.reply({
+    return interaction.editReply({
       embeds: [
         successEmbed(
           interaction.guild.id,
           'Interface Applied',
-          `Now using **${t?.label || themeId}**\nTheme admin roles updated (★ marks the active color).`
+          `Now using **${t?.label || themeId}**\nPanel buttons updated to this theme.`
         ),
       ],
-      ephemeral: true,
     });
   }
 
@@ -307,8 +373,19 @@ async function handleButton(interaction) {
   if (id === 'ticket:close') {
     return closeTicket(interaction);
   }
+  if (id === 'ticket:claim') {
+    return claimTicket(interaction);
+  }
   if (id.startsWith('ticket:open:')) {
     return openTicket(interaction, id.split(':')[2]);
+  }
+  if (id === 'verify:button') {
+    return handleVerifyButton(interaction);
+  }
+
+  if (id.startsWith('suggest:')) {
+    const { handleSuggestButton } = require('../features/suggestions');
+    return handleSuggestButton(interaction);
   }
 
   if (id.startsWith('automod:')) {
@@ -333,12 +410,134 @@ async function handleButton(interaction) {
     });
   }
 
+  if (id.startsWith('honeypot:')) {
+    if (!(await requireAdmin(interaction))) return;
+    const hp = require('../features/honeypot');
+    const parts = id.split(':');
+    const sub = parts[1];
+    const cfg = loadGuild(interaction.guild.id);
+    const h = hp.ensureHoneypot(cfg);
+
+    if (sub === 'dismiss') {
+      return interaction.update({ content: '_Dismissed._', embeds: [], components: [] }).catch(async () => {
+        await interaction.message.delete().catch(() => {});
+      });
+    }
+
+    if (sub === 'create') {
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        const result = await hp.createHoneypotChannel(interaction.guild);
+        return interaction.editReply({
+          embeds: [
+            successEmbed(
+              interaction.guild.id,
+              'Honeypot',
+              result.created
+                ? `Created ${result.channel} with a warning message.\nAction: **${hp.ensureHoneypot(result.cfg).action}**`
+                : `${result.channel} already set — honeypot **enabled**.`
+            ),
+          ],
+        });
+      } catch (err) {
+        return interaction.editReply({
+          embeds: [errorEmbed(interaction.guild.id, 'Honeypot', String(err.message || err))],
+        });
+      }
+    }
+
+    if (sub === 'toggle') {
+      if (!h.channelId) {
+        return interaction.reply({
+          embeds: [errorEmbed(interaction.guild.id, 'Honeypot', 'Create the channel first.')],
+          ephemeral: true,
+        });
+      }
+      h.enabled = !h.enabled;
+      saveGuild(interaction.guild.id, cfg);
+      return interaction.update({
+        embeds: [hp.statusEmbed(interaction.guild.id, cfg)],
+        components: hp.panelComponents(cfg),
+      });
+    }
+
+    if (sub === 'action') {
+      const next = parts[2];
+      if (!hp.ACTIONS.includes(next)) {
+        return interaction.reply({
+          embeds: [errorEmbed(interaction.guild.id, 'Honeypot', 'Unknown action.')],
+          ephemeral: true,
+        });
+      }
+      h.action = next;
+      saveGuild(interaction.guild.id, cfg);
+      if (h.channelId) {
+        const ch = interaction.guild.channels.cache.get(h.channelId);
+        if (ch) {
+          await hp.postWarning(ch, interaction.guild.id, h.action).catch(() => {});
+        }
+      }
+      return interaction.update({
+        embeds: [hp.statusEmbed(interaction.guild.id, cfg)],
+        components: hp.panelComponents(cfg),
+      });
+    }
+
+    if (sub === 'stats') {
+      return interaction.reply({
+        embeds: [hp.statsEmbed(interaction.guild.id, cfg)],
+        components: hp.statsDismissComponents(),
+        ephemeral: true,
+      });
+    }
+
+    return interaction.reply({
+      embeds: [hp.statusEmbed(interaction.guild.id, cfg)],
+      components: hp.panelComponents(cfg),
+      ephemeral: true,
+    });
+  }
+
   if (!id.startsWith('panel:')) return;
 
-  // Control panel is administrators only
-  if (!(await requireAdmin(interaction))) return;
-
   const action = id.slice(6);
+
+  // Ack heavy actions immediately so Discord never shows "didn't respond"
+  const heavyPanel = new Set(['templates', 'automod', 'nuke', 'honeypot', 'interfaces', 'theme', 'iface-all']);
+  if (heavyPanel.has(action)) {
+    if (!memberHasAdmin(interaction.member)) {
+      return interaction.reply({
+        embeds: [errorEmbed(interaction.guild.id, 'Denied', 'Administrator required.')],
+        ephemeral: true,
+      });
+    }
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+  } else if (!(await requireAdmin(interaction))) {
+    return;
+  }
+
+  const { isFreePanelActionAllowed, isFreeEdition, loadConfig } = require('../utils/edition');
+  if (isFreeEdition() && !isFreePanelActionAllowed(action) && !['noop'].includes(action)) {
+    const promo = loadConfig().promo || {};
+    const payload = {
+      embeds: [
+        errorEmbed(
+          interaction.guild.id,
+          'Ougi Free',
+          `This control is **Pro-only** on the free trial bot.\n\nDiscord: ${promo.discordInvite || '—'}\nBuy: ${promo.productUrl || '—'}`
+        ),
+      ],
+    };
+    if (interaction.deferred) return interaction.editReply(payload);
+    return interaction.reply({ ...payload, ephemeral: true });
+  }
+
+  const replyEphemeral = async (payload) => {
+    if (interaction.deferred || interaction.replied) {
+      return interaction.editReply(payload);
+    }
+    return interaction.reply({ ...payload, ephemeral: true });
+  };
 
   if (['ban', 'kick', 'mute', 'unmute', 'nick'].includes(action)) {
     return interaction.reply({
@@ -354,7 +553,7 @@ async function handleButton(interaction) {
   }
 
   const { handleExpandedPanel } = require('./panel-extra');
-  if (await handleExpandedPanel(interaction, action, requireAdmin, requireAdmin)) return;
+  if (await handleExpandedPanel(interaction, action, requireMod, requireAdmin)) return;
 
   if (action === 'lock' || action === 'unlock') {
     return interaction.reply({
@@ -378,15 +577,13 @@ async function handleButton(interaction) {
   }
 
   if (action === 'theme' || action === 'interfaces') {
-    if (!(await requireAdmin(interaction))) return;
     const payload = singleInterfacePayload(interaction.guild.id, 0);
-    return interaction.reply({ ...payload, ephemeral: true });
+    return replyEphemeral(payload);
   }
 
   if (action === 'iface-all') {
-    if (!(await requireAdmin(interaction))) return;
     const payload = allInterfacesPayload(interaction.guild.id);
-    return interaction.reply({ ...payload, ephemeral: true });
+    return replyEphemeral(payload);
   }
 
   if (action === 'botname' || action === 'profile') {
@@ -509,40 +706,12 @@ async function handleButton(interaction) {
   }
 
   if (action === 'templates') {
-    if (!(await requireAdmin(interaction))) return;
-    return interaction.reply({
-      embeds: [
-        baseEmbed(interaction.guild.id, {
-          title: 'Templates',
-          description:
-            'Choose a **server** or **role** template.\n' +
-            'Previews use connected trees (`▲ │ ├─ └─ ▼`) and roles use **emoji・Name** (same as aesthetic channels).',
-          fields: [
-            {
-              name: 'Server Templates',
-              value: SERVER_TEMPLATES.map((t) => `→ __**${t.name}**__ — ${t.description}`).join('\n').slice(0, 1024),
-            },
-            {
-              name: 'Role Templates',
-              value: ROLE_TEMPLATES.map((t) => `→ __**${t.name}**__\n\`\`\`\n${t.preview}\n\`\`\``)
-                .join('\n')
-                .slice(0, 1024),
-            },
-          ],
-        }),
-      ],
-      components: [
-        templateSelect('server', SERVER_TEMPLATES),
-        templateSelect('roles', ROLE_TEMPLATES),
-      ],
-      ephemeral: true,
-    });
+    return replyEphemeral(templateHomePayload(interaction.guild.id));
   }
 
   if (action === 'automod') {
-    if (!(await requireAdmin(interaction))) return;
     const cfg = loadGuild(interaction.guild.id);
-    return interaction.reply({
+    return replyEphemeral({
       embeds: [
         baseEmbed(interaction.guild.id, {
           title: 'AutoMod',
@@ -572,7 +741,16 @@ async function handleButton(interaction) {
           ],
         },
       ],
-      ephemeral: true,
+    });
+  }
+
+  if (action === 'honeypot') {
+    const hp = require('../features/honeypot');
+    const cfg = loadGuild(interaction.guild.id);
+    hp.ensureHoneypot(cfg);
+    return replyEphemeral({
+      embeds: [hp.statusEmbed(interaction.guild.id, cfg)],
+      components: hp.panelComponents(cfg),
     });
   }
 
@@ -584,6 +762,43 @@ async function handleButton(interaction) {
         { id: 'message', label: 'Welcome message', style: 'long', placeholder: 'Welcome {user} to {server}!', value: 'Welcome {user} to **{server}**! You are member #{count}.' },
       ])
     );
+  }
+
+  if (action === 'goodbye') {
+    if (!(await requireAdmin(interaction))) return;
+    return interaction.showModal(
+      modal('goodbye:setup', 'Goodbye Messages', [
+        { id: 'enabled', label: 'Enable? (yes/no)', placeholder: 'yes', max: 3 },
+        {
+          id: 'message',
+          label: 'Goodbye message',
+          style: 'long',
+          placeholder: '{user} left {server}',
+          value: '**{user}** left **{server}**. We now have {count} members.',
+        },
+      ])
+    );
+  }
+
+  if (action === 'verify') {
+    if (!(await requireAdmin(interaction))) return;
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      await setupVerify(interaction.guild, interaction.channel);
+      return interaction.editReply({
+        embeds: [
+          successEmbed(
+            interaction.guild.id,
+            'Verify Ready',
+            `Verification panel posted in ${interaction.channel}.\nNew members get **Unverified** until they click Verify.`
+          ),
+        ],
+      });
+    } catch (err) {
+      return interaction.editReply({
+        embeds: [errorEmbed(interaction.guild.id, 'Verify', err.message || 'Setup failed.')],
+      });
+    }
   }
 
   if (action === 'jtc') {
@@ -725,23 +940,15 @@ async function handleStringSelect(interaction) {
     const theme = interaction.values[0];
     const { applyThemeAndSyncRoles } = require('../features/theme-roles');
     await applyThemeAndSyncRoles(interaction.guild, theme);
-    const cfg = loadGuild(interaction.guild.id);
-    if (cfg.panelChannelId && cfg.panelMessageId) {
-      const ch = interaction.guild.channels.cache.get(cfg.panelChannelId);
-      const msg = ch && (await ch.messages.fetch(cfg.panelMessageId).catch(() => null));
-      if (msg) {
-        await msg.edit({
-          embeds: [panelEmbed(interaction.guild.id, interaction.client, 0)],
-          components: panelComponents(interaction.guild.id, 0),
-        });
-      }
-    }
+    await createPanel(interaction.guild, interaction.client, { skipThemeRoles: true }).catch((err) => {
+      console.error('Theme panel refresh failed:', err.message);
+    });
     return interaction.update({
       embeds: [
         successEmbed(
           interaction.guild.id,
           'Theme',
-          `Accent set to **${THEMES[theme].label}**\nTheme admin roles updated (★ = active).`
+          `Accent set to **${THEMES[theme].label}**\nPanel buttons updated to this theme.`
         ),
       ],
       components: [],
@@ -758,30 +965,28 @@ async function handleStringSelect(interaction) {
 
   if (scope === 'template') {
     if (!(await requireAdmin(interaction))) return;
+    const { isFreeEdition, isFreeServerTemplateAllowed } = require('../utils/edition');
     const id = interaction.values[0];
+    if (kind === 'roles' && isFreeEdition()) {
+      return interaction.update(templateHomePayload(interaction.guild.id));
+    }
     if (kind === 'server') {
+      if (!isFreeServerTemplateAllowed(id)) {
+        return interaction.update({
+          embeds: [
+            errorEmbed(
+              interaction.guild.id,
+              'Ougi Free',
+              'Free includes **Community Hub** only. Extra layouts are Pro.'
+            ),
+          ],
+          components: templateHomeComponents(interaction.guild.id),
+        });
+      }
       const template = getServerTemplate(id);
       await interaction.update({
         embeds: [templatePreviewEmbed(interaction.guild.id, 'server', template)],
-        components: [
-          {
-            type: 1,
-            components: [
-              {
-                type: 2,
-                custom_id: `template:apply:server:${id}:keep`,
-                label: 'Apply',
-                style: 3,
-              },
-              {
-                type: 2,
-                custom_id: `template:apply:server:${id}:wipe`,
-                label: 'Wipe + Apply',
-                style: 4,
-              },
-            ],
-          },
-        ],
+        components: templateApplyComponents('server', id, interaction.guild.id),
       });
       return;
     }
@@ -789,19 +994,7 @@ async function handleStringSelect(interaction) {
       const template = getRoleTemplate(id);
       await interaction.update({
         embeds: [templatePreviewEmbed(interaction.guild.id, 'roles', template)],
-        components: [
-          {
-            type: 1,
-            components: [
-              {
-                type: 2,
-                custom_id: `template:apply:roles:${id}`,
-                label: 'Apply Role Template',
-                style: 3,
-              },
-            ],
-          },
-        ],
+        components: templateApplyComponents('roles', id, interaction.guild.id),
       });
     }
   }
@@ -812,66 +1005,138 @@ async function handleTemplateApply(interaction) {
   const parts = interaction.customId.split(':');
   // template:apply:server:id:keep|wipe  OR  template:apply:roles:id
   if (parts[0] !== 'template' || parts[1] !== 'apply') return false;
-  if (!(await requireAdmin(interaction))) return true;
+
+  // Acknowledge immediately — builds can take longer than Discord's 3s limit
+  await interaction.deferReply({ ephemeral: true }).catch(() => {});
+  if (!memberHasAdmin(interaction.member)) {
+    await interaction.editReply({
+      embeds: [errorEmbed(interaction.guild.id, 'Denied', 'Administrator required.')],
+    });
+    return true;
+  }
+
   const kind = parts[2];
   const id = parts[3];
   const mode = parts[4] || 'keep';
-  await interaction.deferUpdate();
+
+  const { isFreeEdition, isFreeServerTemplateAllowed, FREE_SERVER_TEMPLATE_ID } = require('../utils/edition');
+  if (isFreeEdition()) {
+    if (kind === 'roles') {
+      await interaction.editReply({
+        embeds: [
+          errorEmbed(
+            interaction.guild.id,
+            'Ougi Free',
+            'Role templates are **Pro-only**. Free includes the **Community Hub** channel layout only.'
+          ),
+        ],
+      });
+      return true;
+    }
+    if (kind === 'server' && !isFreeServerTemplateAllowed(id)) {
+      await interaction.editReply({
+        embeds: [
+          errorEmbed(
+            interaction.guild.id,
+            'Ougi Free',
+            `Free includes **${FREE_SERVER_TEMPLATE_ID}** only. Extra layouts are Pro.`
+          ),
+        ],
+      });
+      return true;
+    }
+  }
+
   try {
     if (kind === 'server') {
       const wipeChannels = mode === 'wipe';
       if (wipeChannels) {
-        await interaction.followUp({
+        await interaction.editReply({
           embeds: [
             baseEmbed(interaction.guild.id, {
               title: 'Wiping Channels',
               description: 'Deleting all channels, then building the template. This can take a moment...',
             }),
           ],
-          ephemeral: true,
+        });
+      } else {
+        await interaction.editReply({
+          embeds: [
+            baseEmbed(interaction.guild.id, {
+              title: 'Building…',
+              description: 'Applying server template…',
+            }),
+          ],
         });
       }
-      const result = await applyServerTemplate(interaction.guild, id, null, { wipeChannels });
+      const result = await applyServerTemplate(interaction.guild, id, null, {
+        wipeChannels,
+        skipTickets: true,
+      });
 
-      // Panel channel is gone after a wipe — recreate it
       let panelNote = '';
       if (wipeChannels) {
         try {
           const { createPanel } = require('../commands');
-          const panel = await createPanel(interaction.guild, interaction.client);
+          const panel = await createPanel(interaction.guild, interaction.client, {
+            forceNew: true,
+            skipThemeRoles: true,
+          });
           panelNote = `\n\nControl panel recreated in ${panel}.`;
         } catch (err) {
           panelNote = `\n\nCould not recreate panel automatically — run \`.setup\`.`;
         }
       }
 
-      await interaction.followUp({
+      const staffNote = result.staffRoles?.length
+        ? `\n\nStaff access granted to: **${result.staffRoles.join(', ')}**`
+        : `\n\n_No mod/staff roles found — apply a **Role template** first, then re-apply channels (or run \`.template\` wipe again)._`;
+
+      await interaction.editReply({
         embeds: [
           successEmbed(
             interaction.guild.id,
             'Server Built',
-            `${wipeChannels ? `Wiped existing channels, then applied **${result.template.name}**.` : `**${result.template.name}** applied.`}\n\`\`\`\n${result.created.join('\n')}\n\`\`\`${panelNote}`
+            `${wipeChannels ? `Wiped existing channels, then applied **${result.template.name}**.` : `**${result.template.name}** applied.`}\n\`\`\`\n${result.created.join('\n')}\n\`\`\`${staffNote}${panelNote}`
           ),
         ],
-        ephemeral: true,
       });
+
+      // Tickets after reply so the panel doesn't sit on "Building…"
+      const { setupTicketsFromTemplate } = require('../features/tickets');
+      setupTicketsFromTemplate(interaction.guild, {
+        staffRoles: result.staffRolesRaw || [],
+        vipRoles: result.vipRolesRaw || [],
+      }).catch((err) => console.error('ticket setup after template:', err.message));
     } else {
+      await interaction.editReply({
+        embeds: [
+          baseEmbed(interaction.guild.id, {
+            title: 'Creating Roles…',
+            description: 'Applying role template…',
+          }),
+        ],
+      });
       const result = await applyRoleTemplate(interaction.guild, id);
-      await interaction.followUp({
+      const createdBlock = result.created.length
+        ? result.created.map((r) => `→ ${r}`).join('\n')
+        : '_No new roles (all names already existed)._';
+      const skippedBlock = result.skipped?.length
+        ? `\n\n__**Skipped**__\n${result.skipped.map((r) => `→ ${r}`).join('\n')}`
+        : '';
+      await interaction.editReply({
         embeds: [
           successEmbed(
             interaction.guild.id,
             'Roles Created',
-            `**${result.template.name}**\n${result.created.map((r) => `→ ${r}`).join('\n')}`
+            `**${result.template.name}**\n${createdBlock}${skippedBlock}\n\n_Staff/VIP channel permissions were re-synced._`
           ),
         ],
-        ephemeral: true,
       });
     }
   } catch (err) {
-    await interaction.followUp({
+    await interaction.editReply({
       embeds: [errorEmbed(interaction.guild.id, 'Template', String(err.message || err))],
-      ephemeral: true,
     });
   }
   return true;
@@ -1169,11 +1434,11 @@ async function handleModal(interaction) {
     const label = interaction.fields.getTextInputValue('label').trim();
     const description = interaction.fields.getTextInputValue('description').trim();
     const prefix = interaction.fields.getTextInputValue('prefix').trim().toLowerCase().replace(/\s+/g, '-');
-    let style = 'dot';
+    let style = 'star';
     try {
       style = parseStyle(interaction.fields.getTextInputValue('style'));
     } catch {
-      style = 'dot';
+      style = 'star';
     }
     // Infer a fitting emoji from the label
     const lower = label.toLowerCase();
@@ -1189,15 +1454,9 @@ async function handleModal(interaction) {
     cfg.tickets.panels[panelId] = panel;
     saveGuild(interaction.guild.id, cfg);
     await postTicketPanel(interaction.channel, interaction.guild.id, panel);
-    const { formatTicketChannelName } = require('../features/tickets');
-    const example = formatTicketChannelName(panel, '0001');
     return interaction.reply({
       embeds: [
-        successEmbed(
-          interaction.guild.id,
-          'Ticket Panel Created',
-          `→ Label: **${label}**\n→ Channels look like \`${example}\``
-        ),
+        successEmbed(interaction.guild.id, 'Ticket Panel Created', `Posted · **${label}**`),
       ],
       ephemeral: true,
     });
@@ -1262,6 +1521,238 @@ async function handleModal(interaction) {
       ],
       ephemeral: true,
     });
+  }
+
+  if (id === 'goodbye:setup') {
+    if (!(await requireAdmin(interaction))) return;
+    const enabled = interaction.fields.getTextInputValue('enabled').toLowerCase().startsWith('y');
+    const message = interaction.fields.getTextInputValue('message');
+    const cfg = loadGuild(interaction.guild.id);
+    if (!cfg.goodbye) cfg.goodbye = { enabled: false, channelId: null, message: '' };
+    cfg.goodbye.enabled = enabled;
+    cfg.goodbye.message = message;
+    cfg.goodbye.channelId = interaction.channel.id;
+    saveGuild(interaction.guild.id, cfg);
+    return interaction.reply({
+      embeds: [
+        successEmbed(
+          interaction.guild.id,
+          'Goodbye',
+          enabled
+            ? `Goodbyes ON in ${interaction.channel}\nMessage: ${message}`
+            : 'Goodbye messages disabled.'
+        ),
+      ],
+      ephemeral: true,
+    });
+  }
+
+  if (id === 'panel:purge') {
+    if (!(await requireMod(interaction))) return;
+    const { purgeMessages, sendModLog } = require('../features/moderation');
+    const amount = parseInt(interaction.fields.getTextInputValue('amount'), 10);
+    const deleted = await purgeMessages(interaction.channel, { amount });
+    await sendModLog(interaction.guild, {
+      action: 'Purge',
+      userId: interaction.user.id,
+      userTag: interaction.user.tag,
+      modId: interaction.user.id,
+      reason: `Purged ${deleted} via panel in #${interaction.channel.name}`,
+    });
+    return interaction.reply({
+      embeds: [successEmbed(interaction.guild.id, 'Purged', `Deleted **${deleted}** message(s).`)],
+      ephemeral: true,
+    });
+  }
+
+  if (id === 'panel:slowmode') {
+    if (!(await requireMod(interaction))) return;
+    const { setSlowmode } = require('../features/moderation');
+    const seconds = parseInt(interaction.fields.getTextInputValue('seconds'), 10);
+    if (Number.isNaN(seconds)) {
+      return interaction.reply({
+        embeds: [errorEmbed(interaction.guild.id, 'Slowmode', 'Enter a number of seconds.')],
+        ephemeral: true,
+      });
+    }
+    const s = await setSlowmode(interaction.channel, seconds);
+    return interaction.reply({
+      embeds: [successEmbed(interaction.guild.id, 'Slowmode', `${interaction.channel} set to **${s}s**.`)],
+      ephemeral: true,
+    });
+  }
+
+  if (id === 'panel:sticky') {
+    if (!(await requireMod(interaction))) return;
+    const { setSticky, clearSticky } = require('../features/sticky');
+    const text = interaction.fields.getTextInputValue('text').trim();
+    if (text.toLowerCase() === 'clear') {
+      await clearSticky(interaction.channel);
+      return interaction.reply({
+        embeds: [successEmbed(interaction.guild.id, 'Sticky', 'Cleared sticky in this channel.')],
+        ephemeral: true,
+      });
+    }
+    await setSticky(interaction.channel, text);
+    return interaction.reply({
+      embeds: [successEmbed(interaction.guild.id, 'Sticky', 'Sticky message set.')],
+      ephemeral: true,
+    });
+  }
+
+  if (id === 'panel:poll') {
+    if (!(await requireMod(interaction))) return;
+    const { createPoll } = require('../features/polls');
+    const question = interaction.fields.getTextInputValue('question').trim();
+    const options = interaction.fields
+      .getTextInputValue('options')
+      .split('|')
+      .map((p) => p.trim())
+      .filter(Boolean);
+    if (!question || options.length < 2) {
+      return interaction.reply({
+        embeds: [errorEmbed(interaction.guild.id, 'Poll', 'Need a question and at least 2 options (split with |).')],
+        ephemeral: true,
+      });
+    }
+    await createPoll(interaction.channel, interaction.guild.id, question, options);
+    return interaction.reply({
+      embeds: [successEmbed(interaction.guild.id, 'Poll', 'Poll posted in this channel.')],
+      ephemeral: true,
+    });
+  }
+
+  if (id === 'panel:remind') {
+    const { addReminder } = require('../features/reminders');
+    const when = interaction.fields.getTextInputValue('when').trim();
+    const text = interaction.fields.getTextInputValue('text').trim();
+    const durationMs = parseDuration(when);
+    if (!durationMs || !text) {
+      return interaction.reply({
+        embeds: [errorEmbed(interaction.guild.id, 'Remind', 'Use a duration like `1h` and a message.')],
+        ephemeral: true,
+      });
+    }
+    const r = addReminder(interaction.client, {
+      guildId: interaction.guild.id,
+      channelId: interaction.channel.id,
+      userId: interaction.user.id,
+      text,
+      durationMs,
+    });
+    return interaction.reply({
+      embeds: [
+        successEmbed(
+          interaction.guild.id,
+          'Reminder Set',
+          `I'll remind you <t:${Math.floor(r.endsAt / 1000)}:R>:\n${text}`
+        ),
+      ],
+      ephemeral: true,
+    });
+  }
+
+  if (id === 'panel:embed') {
+    if (!(await requireMod(interaction))) return;
+    const title = interaction.fields.getTextInputValue('title').trim();
+    const description = interaction.fields.getTextInputValue('description').trim();
+    let image = '';
+    try {
+      image = interaction.fields.getTextInputValue('image')?.trim() || '';
+    } catch {
+      /* optional */
+    }
+    const payload = {
+      embeds: [
+        baseEmbed(interaction.guild.id, {
+          title: title || 'Embed',
+          description,
+          image: image || undefined,
+        }),
+      ],
+    };
+    await interaction.channel.send(payload);
+    return interaction.reply({
+      embeds: [successEmbed(interaction.guild.id, 'Embed', 'Posted in this channel.')],
+      ephemeral: true,
+    });
+  }
+
+  if (id === 'panel:afk') {
+    const { setAfk, clearAfk } = require('../features/afk');
+    const reason = interaction.fields.getTextInputValue('reason').trim();
+    if (reason.toLowerCase() === 'clear') {
+      clearAfk(interaction.guild.id, interaction.user.id);
+      return interaction.reply({
+        embeds: [successEmbed(interaction.guild.id, 'AFK', 'AFK cleared.')],
+        ephemeral: true,
+      });
+    }
+    setAfk(interaction.guild.id, interaction.user.id, reason || 'AFK');
+    return interaction.reply({
+      embeds: [successEmbed(interaction.guild.id, 'AFK', `You're now AFK: ${reason || 'AFK'}`)],
+      ephemeral: true,
+    });
+  }
+
+  if (id === 'panel:autorespond') {
+    if (!(await requireAdmin(interaction))) return;
+    const { addRule } = require('../features/autoresponder');
+    const trigger = interaction.fields.getTextInputValue('trigger').trim();
+    const response = interaction.fields.getTextInputValue('response').trim();
+    if (!trigger || !response) {
+      return interaction.reply({
+        embeds: [errorEmbed(interaction.guild.id, 'Autorespond', 'Trigger and response are required.')],
+        ephemeral: true,
+      });
+    }
+    addRule(interaction.guild.id, trigger, response);
+    return interaction.reply({
+      embeds: [successEmbed(interaction.guild.id, 'Autorespond', `Added trigger \`${trigger}\``)],
+      ephemeral: true,
+    });
+  }
+
+  if (id === 'panel:giveaway') {
+    if (!(await requireMod(interaction))) return;
+    const { startGiveaway } = require('../features/giveaways');
+    const prize = interaction.fields.getTextInputValue('prize').trim();
+    const durationRaw = interaction.fields.getTextInputValue('duration').trim();
+    const winners = Math.max(1, parseInt(interaction.fields.getTextInputValue('winners'), 10) || 1);
+    const durationMs = parseDuration(durationRaw);
+    if (!prize || !durationMs) {
+      return interaction.reply({
+        embeds: [errorEmbed(interaction.guild.id, 'Giveaway', 'Need a prize and duration like `1h`.')],
+        ephemeral: true,
+      });
+    }
+    try {
+      const { message: gmsg } = await startGiveaway(interaction.client, {
+        guild: interaction.guild,
+        channel: interaction.channel,
+        host: interaction.user,
+        prize,
+        durationMs,
+        winners,
+        maxEntries: null,
+        requireServer: false,
+      });
+      return interaction.reply({
+        embeds: [
+          successEmbed(
+            interaction.guild.id,
+            'Giveaway Started',
+            `Posted in ${interaction.channel} → [jump](${gmsg.url})`
+          ),
+        ],
+        ephemeral: true,
+      });
+    } catch (err) {
+      return interaction.reply({
+        embeds: [errorEmbed(interaction.guild.id, 'Giveaway', err.message || 'Failed to start.')],
+        ephemeral: true,
+      });
+    }
   }
 
   if (id === 'automod:addword') {
@@ -1406,9 +1897,12 @@ async function handleModal(interaction) {
       });
     }
     if (action === 'unmute') {
-      await member.timeout(null).catch(() => {});
-      const cfg = loadGuild(interaction.guild.id);
-      if (cfg.mutedRoleId) await member.roles.remove(cfg.mutedRoleId).catch(() => {});
+      const { unmuteMember } = require('../features/moderation');
+      await unmuteMember(interaction.guild, {
+        target: member,
+        moderator: interaction.user,
+        reason,
+      });
       return interaction.reply({
         embeds: [successEmbed(interaction.guild.id, 'Unmuted', `→ **${member.user.tag}**`)],
         ephemeral: true,
@@ -1416,14 +1910,22 @@ async function handleModal(interaction) {
     }
     if (action === 'mute') {
       const duration = parseDuration(interaction.fields.getTextInputValue('duration'));
-      try {
-        await member.timeout(duration, `${interaction.user.tag}: ${reason}`);
-      } catch {
-        const role = await ensureMutedRole(interaction.guild, store);
-        await member.roles.add(role, reason);
-      }
+      const { muteMember } = require('../features/moderation');
+      const row = await muteMember(interaction.guild, {
+        target: member,
+        moderator: interaction.user,
+        reason,
+        durationMs: duration,
+        store,
+      });
       return interaction.reply({
-        embeds: [successEmbed(interaction.guild.id, 'Muted', `→ **${member.user.tag}**\n→ ${reason}`)],
+        embeds: [
+          successEmbed(
+            interaction.guild.id,
+            'Muted',
+            `→ **${member.user.tag}** · Case #${row.id}\n→ ${reason}`
+          ),
+        ],
         ephemeral: true,
       });
     }
@@ -1463,6 +1965,9 @@ async function handleInteractionFixed(interaction) {
       return handleChannelEditModal(interaction, requireMod);
     }
     if (interaction.isButton() && interaction.customId.startsWith('automod:')) {
+      return handleButton(interaction);
+    }
+    if (interaction.isButton() && interaction.customId.startsWith('honeypot:')) {
       return handleButton(interaction);
     }
     return handleInteraction(interaction);

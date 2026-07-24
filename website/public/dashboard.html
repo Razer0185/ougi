@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard — Ougi</title>
+  <meta name="description" content="Configure Ougi for your Discord server." />
+  <link rel="stylesheet" href="styles.css?v=20260723dash" />
+</head>
+<body class="dash-body">
+  <header class="topbar">
+    <a class="logo" href="index.html">Ougi<span>.</span></a>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="pricing.html">Prices</a>
+      <a class="on" href="dashboard.html">Dashboard</a>
+      <a href="host.html">Host</a>
+      <a href="account.html">Account</a>
+    </nav>
+    <div class="topbar-actions">
+      <button class="theme-toggle" type="button" data-theme-toggle><span data-theme-label>Light</span></button>
+      <a class="btn primary tiny" href="pay.html">Pay now</a>
+    </div>
+  </header>
+
+  <div id="dashGate" class="shell" hidden>
+    <h1 class="page-title">Dashboard</h1>
+    <div class="block">
+      <h2 id="gateTitle">Sign in required</h2>
+      <p class="muted" id="gateText">Log in with the same account you use for Host.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px">
+        <a class="btn primary" id="gatePrimary" href="account.html?next=dashboard.html">Log in</a>
+        <a class="btn ghost" id="gateSecondary" href="host.html" hidden>Open Host</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="dashApp" class="dash-layout" hidden>
+    <aside class="dash-side">
+      <div class="dash-server">
+        <div class="dash-server-icon" aria-hidden="true">O</div>
+        <div>
+          <div class="dash-server-name">My Server</div>
+          <div class="dash-server-id">ID <span id="guildIdLabel">—</span></div>
+        </div>
+      </div>
+      <nav class="dash-nav" id="dashNav" aria-label="Modules">
+        <button type="button" class="dash-nav-item on" data-section="overview">Overview</button>
+        <button type="button" class="dash-nav-item" data-section="moderation">Moderation</button>
+        <button type="button" class="dash-nav-item" data-section="automod">AutoMod &amp; Anti-Raid</button>
+        <button type="button" class="dash-nav-item" data-section="levels">Levels</button>
+        <button type="button" class="dash-nav-item" data-section="welcome">Welcome</button>
+        <button type="button" class="dash-nav-item" data-section="suggestions">Suggestions</button>
+        <button type="button" class="dash-nav-item" data-section="schedules">Schedules</button>
+        <button type="button" class="dash-nav-item" data-section="roles">Roles</button>
+        <button type="button" class="dash-nav-item" data-section="templates">Templates</button>
+        <button type="button" class="dash-nav-item" data-section="logging">Logging</button>
+        <button type="button" class="dash-nav-item" data-section="custom">Custom Commands</button>
+        <button type="button" class="dash-nav-item" data-section="ai">AI</button>
+        <button type="button" class="dash-nav-item" data-section="theme">Theme</button>
+      </nav>
+    </aside>
+
+    <main class="dash-main">
+      <!-- Overview -->
+      <section class="dash-panel" data-panel="overview" hidden>
+        <header class="dash-head">
+          <div>
+            <h1>Overview</h1>
+            <p>Quick status for your linked Discord server.</p>
+          </div>
+        </header>
+        <div class="dash-stats">
+          <div class="dash-stat"><span>Plan</span><strong id="ovPlan">—</strong></div>
+          <div class="dash-stat"><span>Prefix</span><strong id="ovPrefix">.</strong></div>
+          <div class="dash-stat"><span>Theme</span><strong id="ovTheme">blue</strong></div>
+          <div class="dash-stat"><span>Anti-raid</span><strong id="ovRaid">—</strong></div>
+        </div>
+        <p class="muted">Pick a module on the left to configure. Saves write straight to Ougi — no restart.</p>
+      </section>
+
+      <!-- Moderation -->
+      <section class="dash-panel" data-panel="moderation" hidden>
+        <header class="dash-head">
+          <div>
+            <h1>Moderation</h1>
+            <p>Ban, kick, mute, warn, purge, softban — run from Discord or the panel.</p>
+          </div>
+        </header>
+        <div class="dash-info">
+          <p>Use <code>.ban</code> <code>.kick</code> <code>.mute</code> <code>.warn</code> <code>.purge</code> in Discord, or the <strong>✨・ougi</strong> control panel.</p>
+          <p class="muted">Web moderation actions (pick a user &amp; ban from here) land in a later update. Logging channel is under <strong>Logging</strong>.</p>
+        </div>
+      </section>
+
+      <!-- AutoMod -->
+      <section class="dash-panel on" data-panel="automod" hidden>
+        <header class="dash-head">
+          <div>
+            <h1>AutoMod &amp; Anti-Raid</h1>
+            <p>Stop spam and join floods before they wreck chat.</p>
+          </div>
+          <div class="dash-chip" id="lockdownChip"><span class="dot"></span> Lockdown: off</div>
+        </header>
+
+        <div class="dash-row">
+          <div>
+            <strong>AutoMod</strong>
+            <span>Master switch for filters</span>
+          </div>
+          <label class="switch"><input type="checkbox" id="amEnabled" /><span></span></label>
+        </div>
+        <div class="dash-row">
+          <div>
+            <strong>Anti-spam</strong>
+            <span>Blocks message spam &amp; floods</span>
+          </div>
+          <label class="switch"><input type="checkbox" id="amSpam" /><span></span></label>
+        </div>
+        <div class="dash-row">
+          <div>
+            <strong>Anti-invites</strong>
+            <span>Blocks Discord invite links</span>
+          </div>
+          <label class="switch"><input type="checkbox" id="amInvites" /><span></span></label>
+        </div>
+        <div class="dash-row">
+          <div>
+            <strong>Anti-links</strong>
+            <span>Blocks URLs &amp; suspicious links</span>
+          </div>
+          <label class="switch"><input type="checkbox" id="amLinks" /><span></span></label>
+        </div>
+        <div class="dash-row">
+          <div>
+            <strong>Max mentions</strong>
+            <span>Limit @mentions per message</span>
+          </div>
+          <input class="dash-num" type="number" id="amMentions" min="1" max="50" value="5" />
+        </div>
+
+        <div class="dash-divider"></div>
+
+        <div class="dash-row">
+          <div>
+            <strong>Anti-raid</strong>
+            <span>Detect join floods &amp; act</span>
+          </div>
+          <label class="switch"><input type="checkbox" id="arEnabled" /><span></span></label>
+        </div>
+        <div class="dash-grid-2">
+          <label class="field">Joins / min
+            <input type="number" id="arJoins" min="2" max="50" value="8" />
+          </label>
+          <label class="field">Action
+            <select id="arAction">
+              <option value="lock">Lock server</option>
+              <option value="kick">Kick joiners</option>
+              <option value="none">Detect only</option>
+            </select>
+          </label>
+        </div>
+        <label class="field">Exempt role IDs <span class="muted">(optional, comma-separated)</span>
+          <input type="text" id="arExempt" placeholder="123456789012345678" autocomplete="off" />
+        </label>
+
+        <button class="btn primary" type="button" data-save="automod">Save changes</button>
+        <p class="status" data-status="automod"></p>
+      </section>
+
+      <!-- Levels -->
+      <section class="dash-panel" data-panel="levels" hidden>
+        <header class="dash-head">
+          <div>
+            <h1>Levels</h1>
+            <p>Chat XP, voice XP, and level-up announcements.</p>
+          </div>
+        </header>
+        <div class="dash-row">
+          <div><strong>Leveling</strong><span>Award XP for chat</span></div>
+          <label class="switch"><input type="checkbox" id="lvEnabled" /><span></span></label>
+        </div>
+        <div class="dash-row">
+          <div><strong>Voice XP</strong><span>XP while in voice with others</span></div>
+          <label class="switch"><input type="checkbox" id="lvVoice" /><span></span></label>
+        </div>
+        <div class="dash-grid-2">
+          <label class="field">XP / voice minute
+            <input type="number" id="lvVoiceRate" min="1" max="100" value="10" />
+          </label>
+          <label class="field">Announce channel ID
+            <input type="text" id="lvAnnounce" placeholder="Channel snowflake" autocomplete="off" />
+          </label>
+        </div>
+        <button class="btn primary" type="button" data-save="levels">Save changes</button>
+        <p class="status" data-status="levels"></p>
+      </section>
+
+      <!-- Welcome -->
+      <section class="dash-panel" data-panel="welcome" hidden>
+        <header class="dash-head">
+          <div>
+            <h1>Welcome</h1>
+            <p>Greet new members with text and optional image cards.</p>
+          </div>
+        </header>
+        <div class="dash-row">
+          <div><strong>Welcome messages</strong><span>Send on join</span></div>
+          <label class="switch"><input type="checkbox" id="wEnabled" /><span></span></label>
+        </div>
+        <div class="dash-row">
+          <div><strong>Image card</strong><span>PNG banner with avatar</span></div>
+          <label class="switch"><input type="checkbox" id="wCard" /><span></span></label>
+        </div>
+        <label class="field">Channel ID
+          <input type="text" id="wChannel" placeholder="Welcome channel snowflake" autocomplete="off" />
+        </label>
+        <label class="field">Message
+          <textarea id="wMessage" rows="3" maxlength="500" placeholder="Welcome {user} to {server}!"></textarea>
+        </label>
+        <p class="note">Placeholders: <code>{user}</code> <code>{server}</code> <code>{count}</code></p>
+        <div class="dash-divider"></div>
+        <div class="dash-row">
+          <div><strong>Goodbye</strong><span>Message when someone leaves</span></div>
+          <label class="switch"><input type="checkbox" id="gEnabled" /><span></span></label>
+        </div>
+        <label class="field">Goodbye channel ID
+          <input type="text" id="gChannel" autocomplete="off" />
+        </label>
+        <label class="field">Goodbye message
+          <textarea id="gMessage" rows="2" maxlength="500"></textarea>
+        </label>
+        <button class="btn primary" type="button" data-save="welcome">Save changes</button>
+        <p class="status" data-status="welcome"></p>
+      </section>
+
+      <!-- Suggestions -->
+      <section class="dash-panel" data-panel="suggestions" hidden>
+        <header class="dash-head">
+          <div>
+            <h1>Suggestions</h1>
+            <p>Public idea board with upvote / approve buttons.</p>
+          </div>
+        </header>
+        <div class="dash-row">
+          <div><strong>Enabled</strong><span>Members use <code>.suggest</code></span></div>
+          <label class="switch"><input type="checkbox" id="sgEnabled" /><span></span></label>
+        </div>
+        <label class="field">Suggestions channel ID
+          <input type="text" id="sgChannel" autocomplete="off" />
+        </label>
+        <button class="btn primary" type="button" data-save="suggestions">Save changes</button>
+        <p class="status" data-status="suggestions"></p>
+      </section>
+
+      <!-- Schedules -->
+      <section class="dash-panel" data-panel="schedules" hidden>
+        <header class="dash-head">
+          <div>
+            <h1>Schedules</h1>
+            <p>Repeating channel announcements.</p>
+          </div>
+        </header>
+        <div class="dash-info">
+          <p>Create jobs in Discord: <code>.schedule add 1h #channel Title | message</code></p>
+          <p class="muted">List / remove: <code>.schedule</code> · <code>.schedule remove &lt;id&gt;</code></p>
+        </div>
+      </section>
+
+      <!-- Roles -->
+      <section class="dash-panel" data-panel="roles" hidden>
+        <header class="dash-head">
+          <div>
+            <h1>Roles</h1>
+            <p>Autorole, reaction roles, self-roles, temp roles.</p>
+          </div>
+        </header>
+        <div class="dash-info">
+          <p><code>.autorole @Role</code> · <code>.reactionrole</code> · <code>.selfrole</code> · <code>.temprole @user @Role 1h</code></p>
+        </div>
+      </section>
+
+      <!-- Templates -->
+      <section class="dash-panel" data-panel="templates" hidden>
+        <header class="dash-head">
+          <div>
+            <h1>Templates</h1>
+            <p>Build channels &amp; roles from presets, or AI custom layouts.</p>
+          </div>
+        </header>
+        <div class="dash-info">
+          <p>In Discord: <code>.template</code> for the interactive menu, or <code>.askbuild</code> for AI setups.</p>
+        </div>
+      </section>
+
+      <!-- Logging -->
+      <section class="dash-panel" data-panel="logging" hidden>
+        <header class="dash-head">
+          <div>
+            <h1>Logging</h1>
+            <p>Deletes, edits, joins, bans, and voice moves.</p>
+          </div>
+        </header>
+        <div class="dash-row">
+          <div><strong>Server log</strong><span>Write audit events</span></div>
+          <label class="switch"><input type="checkbox" id="logEnabled" /><span></span></label>
+        </div>
+        <label class="field">Log channel ID
+          <input type="text" id="logChannel" autocomplete="off" />
+        </label>
+        <div class="dash-divider"></div>
+        <div class="dash-row">
+          <div><strong>Starboard</strong><span>Highlight starred messages</span></div>
+          <label class="switch"><input type="checkbox" id="sbEnabled" /><span></span></label>
+        </div>
+        <div class="dash-grid-2">
+          <label class="field">Starboard channel ID
+            <input type="text" id="sbChannel" autocomplete="off" />
+          </label>
+          <label class="field">Threshold
+            <input type="number" id="sbThreshold" min="1" max="20" value="3" />
+          </label>
+        </div>
+        <button class="btn primary" type="button" data-save="logging">Save changes</button>
+        <p class="status" data-status="logging"></p>
+      </section>
+
+      <!-- Custom -->
+      <section class="dash-panel" data-panel="custom" hidden>
+        <header class="dash-head">
+          <div>
+            <h1>Custom Commands</h1>
+            <p>Your own replies with variables and embeds.</p>
+          </div>
+        </header>
+        <div class="dash-info">
+          <p><code>.cc add hello Hi {user}!</code></p>
+          <p><code>.cc add rules embed: Rules | Be nice</code></p>
+          <p class="muted">Vars: <code>{user}</code> <code>{server}</code> <code>{channel}</code> <code>{membercount}</code></p>
+        </div>
+      </section>
+
+      <!-- AI -->
+      <section class="dash-panel" data-panel="ai" hidden>
+        <header class="dash-head">
+          <div>
+            <h1>AI</h1>
+            <p>Chat and custom channel builds powered by you.com.</p>
+          </div>
+        </header>
+        <div class="dash-info">
+          <p><code>.ask</code> — talk to Ougi · <code>.askbuild</code> — describe a layout and apply it</p>
+          <p class="muted">API key lives on the host machine (<code>you-api-key.txt</code>), not in the browser.</p>
+        </div>
+      </section>
+
+      <!-- Theme -->
+      <section class="dash-panel" data-panel="theme" hidden>
+        <header class="dash-head">
+          <div>
+            <h1>Theme</h1>
+            <p>Panel &amp; embed colors for your server.</p>
+          </div>
+        </header>
+        <label class="field">Prefix
+          <input type="text" id="cfgPrefix" maxlength="5" />
+        </label>
+        <label class="field">Color theme
+          <select id="cfgTheme">
+            <option value="red">Red</option>
+            <option value="black">Black</option>
+            <option value="white">White</option>
+            <option value="pink">Pink</option>
+            <option value="blue">Blue</option>
+            <option value="purple">Purple</option>
+            <option value="green">Green</option>
+            <option value="orange">Orange</option>
+            <option value="cyan">Cyan</option>
+            <option value="gold">Gold</option>
+          </select>
+        </label>
+        <button class="btn primary" type="button" data-save="theme">Save changes</button>
+        <p class="status" data-status="theme"></p>
+        <p class="note">Or run <code>.theme blue</code> / <code>.prefix !</code> in Discord.</p>
+      </section>
+    </main>
+
+    <aside class="dash-preview" id="dashPreview">
+      <div class="dash-preview-label">Live preview</div>
+      <div class="dash-embed" id="previewEmbed">
+        <div class="dash-embed-bar"></div>
+        <div class="dash-embed-body">
+          <div class="dash-embed-icon" aria-hidden="true">🛡</div>
+          <h3 id="previewTitle">Anti-raid: Lockdown</h3>
+          <dl id="previewFields">
+            <div><dt>Joins/min</dt><dd id="pvJoins">8</dd></div>
+            <div><dt>Threshold</dt><dd id="pvThresh">8</dd></div>
+            <div><dt>Action</dt><dd id="pvAction">Lock server</dd></div>
+            <div><dt>Status</dt><dd id="pvStatus" class="accent">Ready</dd></div>
+          </dl>
+        </div>
+      </div>
+      <p class="dash-preview-note">Changes sync to Discord in seconds. No restart required.</p>
+    </aside>
+  </div>
+
+  <footer class="foot">
+    <strong>Ougi</strong>
+    <span><a href="host.html">Host</a> · <a href="account.html">Account</a> · <a href="pricing.html">Prices</a></span>
+  </footer>
+
+  <script src="config.js?v=20260723dash"></script>
+  <script src="theme.js?v=20260723dash"></script>
+  <script src="dashboard.js?v=20260723dash"></script>
+</body>
+</html>

@@ -62,12 +62,13 @@ const PANEL_PAGES = [
   {
     id: 'logging',
     title: 'Logging & Autos',
-    blurb: 'Logs, auto-replies, sticky messages, starboard.',
+    blurb: 'Logs, auto-replies, sticky messages, starboard, honeypot, anti-raid.',
     buttons: [
       { id: 'serverlog', label: 'Server Log', hint: 'pick a log channel' },
       { id: 'autoresponder', label: 'Autorespond', hint: 'auto reply to words' },
       { id: 'sticky', label: 'Sticky', hint: 'message that stays at bottom' },
       { id: 'starboard', label: 'Starboard', hint: 'starred messages' },
+      { id: 'honeypot', label: 'Honeypot', hint: 'decoy channel · auto kick/ban' },
       { id: 'announce', label: 'Announce', hint: 'post an announcement' },
     ],
   },
@@ -80,6 +81,8 @@ const PANEL_PAGES = [
       { id: 'channels', label: 'Channels', hint: 'edit a channel' },
       { id: 'event', label: 'Event', hint: 'schedule an event' },
       { id: 'welcome', label: 'Welcome', hint: 'welcome new members' },
+      { id: 'goodbye', label: 'Goodbye', hint: 'leave messages' },
+      { id: 'verify', label: 'Verify', hint: 'join verification' },
       { id: 'jtc', label: 'Join Create', hint: 'temp voice rooms' },
     ],
   },

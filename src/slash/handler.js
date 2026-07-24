@@ -478,12 +478,15 @@ async function handleSlash(interaction) {
       }
       const { applyThemeAndSyncRoles } = require('../features/theme-roles');
       await applyThemeAndSyncRoles(guild, key);
+      await createPanel(guild, interaction.client, { skipThemeRoles: true }).catch((err) => {
+        console.error('Theme panel refresh failed:', err.message);
+      });
       await interaction.reply({
         embeds: [
           successEmbed(
             guild.id,
             'Theme Updated',
-            `Accent set to **${THEMES[key].label}**\nTheme admin roles updated (★ = active).`
+            `Accent set to **${THEMES[key].label}**\nControl panel updated. Bot color role applied (your roles are unchanged).\nActive theme role is hoisted.`
           ),
         ],
       });

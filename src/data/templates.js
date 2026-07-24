@@ -35,14 +35,16 @@ function treePreview(categories) {
   return lines.join('\n');
 }
 
-/** Role display matching channel aesthetic: 👑・Owner */
+/** Role display: 👑・Owner · 👑｜Owner · 💀 ★ Owner */
 function styledRoleName(baseName, emoji, style = 'dot') {
   const clean = String(baseName)
     .replace(/^\d+\s*\+\s*/, '')
+    .replace(/^★\s*/u, '')
     .replace(/^[\p{Emoji_Presentation}\p{Extended_Pictographic}\uFE0F\u200D]+\s*/u, '')
-    .replace(/^[・｜|│┊\-_.\s]+/u, '')
+    .replace(/^[・｜|│┊\-_.\s★]+/u, '')
     .trim();
   const em = emoji || '•';
+  if (style === 'star') return `${em} ★ ${clean}`;
   if (style === 'pipe') return `${em}｜${clean}`;
   if (style === 'dash') return `${em}-${clean}`;
   return `${em}・${clean}`;
@@ -52,7 +54,7 @@ const SERVER_TEMPLATES = [
   {
     id: 'community',
     name: 'Community Hub',
-    description: 'General community — info, chat, voice, and staff.',
+    description: 'General community — info, chat, tickets (buyer priority), voice, and staff.',
     categories: [
       {
         name: '📌 INFO',
@@ -60,15 +62,25 @@ const SERVER_TEMPLATES = [
           { name: 'rules', type: 'text', perm: 'readonly' },
           { name: 'announcements', type: 'text', perm: 'readonly' },
           { name: 'roles', type: 'text', perm: 'readonly' },
+          { name: 'updates', type: 'text', perm: 'readonly' },
         ],
       },
       {
         name: '💬 COMMUNITY',
         channels: [
           { name: 'general', type: 'text' },
+          { name: 'introductions', type: 'text' },
           { name: 'memes', type: 'text' },
           { name: 'media', type: 'text' },
           { name: 'bot-commands', type: 'text' },
+          { name: 'do-not-type', type: 'text', honeypot: true },
+        ],
+      },
+      {
+        name: '🎫 SUPPORT',
+        channels: [
+          { name: 'create-ticket', type: 'text', perm: 'readonly' },
+          { name: 'priority-support', type: 'text', perm: 'staff' },
         ],
       },
       {
@@ -82,8 +94,10 @@ const SERVER_TEMPLATES = [
       {
         name: '🛡️ STAFF',
         channels: [
-          { name: 'staff-chat', type: 'text' },
-          { name: 'mod-logs', type: 'text' },
+          { name: 'staff-chat', type: 'text', perm: 'staff' },
+          { name: 'ticket-logs', type: 'text', perm: 'logs' },
+          { name: 'mod-logs', type: 'text', perm: 'logs' },
+          { name: 'reports', type: 'text', perm: 'staff' },
         ],
         staffOnly: true,
       },
@@ -97,8 +111,9 @@ const SERVER_TEMPLATES = [
       {
         name: '📌 INFO',
         channels: [
-          { name: 'announcements', type: 'text' },
-          { name: 'rules', type: 'text' },
+          { name: 'announcements', type: 'text', perm: 'readonly' },
+          { name: 'rules', type: 'text', perm: 'readonly' },
+          { name: 'roles', type: 'text', perm: 'readonly' },
         ],
       },
       {
@@ -107,6 +122,8 @@ const SERVER_TEMPLATES = [
           { name: 'general', type: 'text' },
           { name: 'clips', type: 'text' },
           { name: 'highlights', type: 'text' },
+          { name: 'looking-for-duo', type: 'text' },
+          { name: 'do-not-type', type: 'text', honeypot: true },
         ],
       },
       {
@@ -122,13 +139,15 @@ const SERVER_TEMPLATES = [
           { name: 'Lobby', type: 'voice' },
           { name: 'Ranked', type: 'voice' },
           { name: 'Casual', type: 'voice' },
+          { name: 'AFK', type: 'voice' },
         ],
       },
       {
         name: '🛡️ STAFF',
         channels: [
-          { name: 'staff-chat', type: 'text' },
-          { name: 'reports', type: 'text' },
+          { name: 'staff-chat', type: 'text', perm: 'staff' },
+          { name: 'mod-logs', type: 'text', perm: 'logs' },
+          { name: 'reports', type: 'text', perm: 'staff' },
         ],
         staffOnly: true,
       },
@@ -142,16 +161,17 @@ const SERVER_TEMPLATES = [
       {
         name: '👋 WELCOME',
         channels: [
-          { name: 'welcome', type: 'text' },
-          { name: 'faq', type: 'text' },
-          { name: 'updates', type: 'text' },
+          { name: 'welcome', type: 'text', perm: 'readonly' },
+          { name: 'faq', type: 'text', perm: 'readonly' },
+          { name: 'updates', type: 'text', perm: 'readonly' },
+          { name: 'rules', type: 'text', perm: 'readonly' },
         ],
       },
       {
         name: '🎫 SUPPORT',
         channels: [
-          { name: 'create-ticket', type: 'text' },
-          { name: 'priority-support', type: 'text' },
+          { name: 'create-ticket', type: 'text', perm: 'readonly' },
+          { name: 'priority-support', type: 'text', perm: 'staff' },
         ],
       },
       {
@@ -159,6 +179,7 @@ const SERVER_TEMPLATES = [
         channels: [
           { name: 'general', type: 'text' },
           { name: 'feedback', type: 'text' },
+          { name: 'do-not-type', type: 'text', honeypot: true },
         ],
       },
       {
@@ -171,8 +192,9 @@ const SERVER_TEMPLATES = [
       {
         name: '🛡️ TEAM',
         channels: [
-          { name: 'team-chat', type: 'text' },
-          { name: 'ticket-logs', type: 'text' },
+          { name: 'team-chat', type: 'text', perm: 'staff' },
+          { name: 'ticket-logs', type: 'text', perm: 'logs' },
+          { name: 'mod-logs', type: 'text', perm: 'logs' },
         ],
         staffOnly: true,
       },
@@ -181,14 +203,14 @@ const SERVER_TEMPLATES = [
   {
     id: 'creator',
     name: 'Creator Hub',
-    description: 'Content creator layout — drops, chat, VIP, and stream voice.',
+    description: 'Content creator layout — drops, fans, VIP (locked), and stream voice.',
     categories: [
       {
         name: '📢 CONTENT',
         channels: [
-          { name: 'announcements', type: 'text' },
-          { name: 'uploads', type: 'text' },
-          { name: 'schedule', type: 'text' },
+          { name: 'announcements', type: 'text', perm: 'readonly' },
+          { name: 'uploads', type: 'text', perm: 'readonly' },
+          { name: 'schedule', type: 'text', perm: 'readonly' },
         ],
       },
       {
@@ -197,14 +219,17 @@ const SERVER_TEMPLATES = [
           { name: 'general', type: 'text' },
           { name: 'clips', type: 'text' },
           { name: 'fan-art', type: 'text' },
+          { name: 'do-not-type', type: 'text', honeypot: true },
         ],
       },
       {
         name: '⭐ VIP',
         channels: [
-          { name: 'vip-chat', type: 'text' },
-          { name: 'vip-perks', type: 'text' },
+          { name: 'vip-chat', type: 'text', perm: 'vip' },
+          { name: 'vip-perks', type: 'text', perm: 'readonly' },
+          { name: 'VIP Lounge', type: 'voice', perm: 'vip' },
         ],
+        vipOnly: true,
       },
       {
         name: '🎙️ STREAM',
@@ -216,8 +241,9 @@ const SERVER_TEMPLATES = [
       {
         name: '🛡️ TEAM',
         channels: [
-          { name: 'mods', type: 'text' },
-          { name: 'planning', type: 'text' },
+          { name: 'mods', type: 'text', perm: 'staff' },
+          { name: 'planning', type: 'text', perm: 'staff' },
+          { name: 'mod-logs', type: 'text', perm: 'logs' },
         ],
         staffOnly: true,
       },
@@ -231,8 +257,9 @@ const SERVER_TEMPLATES = [
       {
         name: '📚 INFO',
         channels: [
-          { name: 'announcements', type: 'text' },
-          { name: 'resources', type: 'text' },
+          { name: 'announcements', type: 'text', perm: 'readonly' },
+          { name: 'resources', type: 'text', perm: 'readonly' },
+          { name: 'rules', type: 'text', perm: 'readonly' },
         ],
       },
       {
@@ -241,6 +268,7 @@ const SERVER_TEMPLATES = [
           { name: 'general', type: 'text' },
           { name: 'homework-help', type: 'text' },
           { name: 'notes', type: 'text' },
+          { name: 'do-not-type', type: 'text', honeypot: true },
         ],
       },
       {
@@ -254,8 +282,9 @@ const SERVER_TEMPLATES = [
       {
         name: '🛡️ STAFF',
         channels: [
-          { name: 'teachers', type: 'text' },
-          { name: 'mod-chat', type: 'text' },
+          { name: 'teachers', type: 'text', perm: 'staff' },
+          { name: 'mod-chat', type: 'text', perm: 'staff' },
+          { name: 'mod-logs', type: 'text', perm: 'logs' },
         ],
         staffOnly: true,
       },
@@ -269,8 +298,9 @@ const SERVER_TEMPLATES = [
       {
         name: '🚪 LOBBY',
         channels: [
-          { name: 'welcome', type: 'text' },
-          { name: 'rules', type: 'text' },
+          { name: 'welcome', type: 'text', perm: 'readonly' },
+          { name: 'rules', type: 'text', perm: 'readonly' },
+          { name: 'roles', type: 'text', perm: 'readonly' },
         ],
       },
       {
@@ -280,6 +310,7 @@ const SERVER_TEMPLATES = [
           { name: 'introductions', type: 'text' },
           { name: 'off-topic', type: 'text' },
           { name: 'media', type: 'text' },
+          { name: 'do-not-type', type: 'text', honeypot: true },
         ],
       },
       {
@@ -301,8 +332,8 @@ const SERVER_TEMPLATES = [
       {
         name: '🛡️ STAFF',
         channels: [
-          { name: 'staff', type: 'text' },
-          { name: 'logs', type: 'text' },
+          { name: 'staff', type: 'text', perm: 'staff' },
+          { name: 'mod-logs', type: 'text', perm: 'logs' },
         ],
         staffOnly: true,
       },
@@ -329,6 +360,7 @@ const SERVER_TEMPLATES = [
           { name: '📷・media', type: 'text' },
           { name: '😂・memes', type: 'text' },
           { name: '🤖・commands', type: 'text' },
+          { name: '⚠・do-not-type', type: 'text', honeypot: true },
         ],
       },
       {
@@ -342,13 +374,14 @@ const SERVER_TEMPLATES = [
       {
         name: '│─── Staff 🛡️ ˅',
         channels: [
-          { name: '🛡️・staff-chat', type: 'text' },
-          { name: '📋・mod-logs', type: 'text' },
+          { name: '🛡️・staff-chat', type: 'text', perm: 'staff' },
+          { name: '📋・mod-logs', type: 'text', perm: 'logs' },
+          { name: '🚨・reports', type: 'text', perm: 'staff' },
         ],
         staffOnly: true,
       },
       {
-        name: '╰─── end',
+        name: '╰──── End 🔚',
         channels: [],
         footer: true,
       },
@@ -375,6 +408,7 @@ const SERVER_TEMPLATES = [
           { name: '📷｜media', type: 'text' },
           { name: '😂｜memes', type: 'text' },
           { name: '🤖｜commands', type: 'text' },
+          { name: '⚠｜do-not-type', type: 'text', honeypot: true },
         ],
       },
       {
@@ -388,13 +422,14 @@ const SERVER_TEMPLATES = [
       {
         name: '│─── Staff 🛡️ ˅',
         channels: [
-          { name: '🛡️｜staff-chat', type: 'text' },
-          { name: '📋｜mod-logs', type: 'text' },
+          { name: '🛡️｜staff-chat', type: 'text', perm: 'staff' },
+          { name: '📋｜mod-logs', type: 'text', perm: 'logs' },
+          { name: '🚨｜reports', type: 'text', perm: 'staff' },
         ],
         staffOnly: true,
       },
       {
-        name: '╰─── end',
+        name: '╰──── End 🔚',
         channels: [],
         footer: true,
       },
@@ -421,6 +456,7 @@ const SERVER_TEMPLATES = [
           { name: '📷-media', type: 'text' },
           { name: '😂-memes', type: 'text' },
           { name: '🤖-commands', type: 'text' },
+          { name: '⚠-do-not-type', type: 'text', honeypot: true },
         ],
       },
       {
@@ -434,13 +470,62 @@ const SERVER_TEMPLATES = [
       {
         name: '│─── Staff 🛡️ ˅',
         channels: [
-          { name: '🛡️-staff-chat', type: 'text' },
-          { name: '📋-mod-logs', type: 'text' },
+          { name: '🛡️-staff-chat', type: 'text', perm: 'staff' },
+          { name: '📋-mod-logs', type: 'text', perm: 'logs' },
+          { name: '🚨-reports', type: 'text', perm: 'staff' },
         ],
         staffOnly: true,
       },
       {
-        name: '╰─── end',
+        name: '╰──── End 🔚',
+        channels: [],
+        footer: true,
+      },
+    ],
+  },
+  {
+    id: 'aesthetic-star',
+    name: 'Aesthetic ★ Star',
+    description: 'Decorated layout — emoji ★ name channels (e.g. 💀 ★ general).',
+    categories: [
+      {
+        name: '╭─── Important ⚠️ ˅',
+        channels: [
+          { name: '📜 ★ rules', type: 'text', perm: 'readonly' },
+          { name: '📢 ★ announcements', type: 'text', perm: 'readonly' },
+          { name: '🟣 ★ news', type: 'text', perm: 'readonly' },
+          { name: '✨ ★ roles', type: 'text', perm: 'readonly' },
+        ],
+      },
+      {
+        name: '│─── Community 💬 ˅',
+        channels: [
+          { name: '💬 ★ general', type: 'text' },
+          { name: '📷 ★ media', type: 'text' },
+          { name: '😂 ★ memes', type: 'text' },
+          { name: '🤖 ★ commands', type: 'text' },
+          { name: '⚠ ★ do-not-type', type: 'text', honeypot: true },
+        ],
+      },
+      {
+        name: '│─── Voice 🔊 ˅',
+        channels: [
+          { name: '🔊 ★ lounge', type: 'voice' },
+          { name: '🎮 ★ gaming', type: 'voice' },
+          { name: '💤 ★ afk', type: 'voice' },
+        ],
+      },
+      {
+        name: '│─── Staff 🛡️ ˅',
+        channels: [
+          { name: '🛡️ ★ staff-chat', type: 'text', perm: 'staff' },
+          { name: '📋 ★ mod-logs', type: 'text', perm: 'logs' },
+          { name: '🚨 ★ reports', type: 'text', perm: 'staff' },
+        ],
+        staffOnly: true,
+      },
+      {
+        name: '╰──── End 🔚',
         channels: [],
         footer: true,
       },
@@ -448,9 +533,8 @@ const SERVER_TEMPLATES = [
   },
 ];
 
-// Attach connected tree previews
 for (const t of SERVER_TEMPLATES) {
-  t.preview = treePreview(t.categories);
+  t.preview = treePreview(t.categories || []);
 }
 
 const ROLE_TEMPLATES = [
@@ -572,6 +656,7 @@ const ROLE_TEMPLATES = [
         perms: ['ManageMessages', 'ModerateMembers'],
       },
       { baseName: 'Support', emoji: '🎫', color: 0x1ABC9C, perms: ['ManageMessages'] },
+      { baseName: 'Buyer', emoji: '🛒', color: 0xe67e22, perms: [] },
       { baseName: 'Client', emoji: '👤', color: 0x95A5A6, perms: [] },
     ],
   },
@@ -594,6 +679,57 @@ const ROLE_TEMPLATES = [
         emoji: '🛡️',
         color: 0x2ECC71,
         perms: ['ManageMessages', 'KickMembers', 'ModerateMembers', 'ManageNicknames'],
+      },
+      { baseName: 'Member', emoji: '👥', color: 0x95A5A6, perms: [] },
+    ],
+  },
+  {
+    id: 'staff-star',
+    name: 'Staff Ladder ★ Star',
+    description: 'Staff ladder with emoji ★ Name — e.g. 💀 ★ Owner.',
+    style: 'star',
+    roles: [
+      { baseName: 'Owner', emoji: '👑', color: 0xE74C3C, perms: ['Administrator'] },
+      { baseName: 'Co-Owner', emoji: '💎', color: 0x9B59B6, perms: ['Administrator'] },
+      {
+        baseName: 'Sr. Mod',
+        emoji: '⭐',
+        color: 0x3498DB,
+        perms: ['ManageMessages', 'KickMembers', 'BanMembers', 'ModerateMembers', 'ManageNicknames'],
+      },
+      {
+        baseName: 'Mod',
+        emoji: '🛡️',
+        color: 0x2ECC71,
+        perms: ['ManageMessages', 'KickMembers', 'ModerateMembers', 'ManageNicknames'],
+      },
+      {
+        baseName: 'Staff Team',
+        emoji: '🔧',
+        color: 0x1ABC9C,
+        perms: ['ManageMessages', 'ModerateMembers'],
+      },
+      {
+        baseName: 'Ticket Support',
+        emoji: '🎫',
+        color: 0xF1C40F,
+        perms: ['ManageMessages', 'ViewChannel'],
+      },
+      { baseName: 'Member', emoji: '👥', color: 0x95A5A6, perms: [] },
+    ],
+  },
+  {
+    id: 'simple-star',
+    name: 'Simple Staff ★',
+    description: 'Admin / mod / member with emoji ★ Name — e.g. 👑 ★ Admin.',
+    style: 'star',
+    roles: [
+      { baseName: 'Admin', emoji: '👑', color: 0xE74C3C, perms: ['Administrator'] },
+      {
+        baseName: 'Moderator',
+        emoji: '🛡️',
+        color: 0x3498DB,
+        perms: ['ManageMessages', 'KickMembers', 'BanMembers', 'ModerateMembers'],
       },
       { baseName: 'Member', emoji: '👥', color: 0x95A5A6, perms: [] },
     ],
@@ -688,7 +824,13 @@ const ROLE_PERM_PRESETS = {
     'ViewAuditLog',
     'Connect',
     'Speak',
+    'Stream',
     'PrioritySpeaker',
+    'ViewChannel',
+    'SendMessages',
+    'EmbedLinks',
+    'AttachFiles',
+    'ReadMessageHistory',
   ],
 
   mod: [
@@ -699,8 +841,15 @@ const ROLE_PERM_PRESETS = {
     'ModerateMembers',
     'MuteMembers',
     'MoveMembers',
+    'ViewAuditLog',
     'Connect',
     'Speak',
+    'Stream',
+    'ViewChannel',
+    'SendMessages',
+    'EmbedLinks',
+    'AttachFiles',
+    'ReadMessageHistory',
   ],
 
   staff: [
@@ -708,6 +857,11 @@ const ROLE_PERM_PRESETS = {
     'ModerateMembers',
     'MuteMembers',
     'ManageThreads',
+    'ViewChannel',
+    'SendMessages',
+    'EmbedLinks',
+    'AttachFiles',
+    'ReadMessageHistory',
     'Connect',
     'Speak',
   ],

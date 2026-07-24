@@ -1,0 +1,3 @@
+# Paste the FREE bot token into token-free.txt (never commit that file).
+# Or set DISCORD_TOKEN_FREE in the environment.
+YOUR_FREE_BOT_TOKEN_HERE

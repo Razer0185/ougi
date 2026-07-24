@@ -9,12 +9,21 @@ const fs = require('fs');
 const path = require('path');
 const { sanitizePlainText, isValidEmail, isValidDiscordName, logSecure } = require('./security');
 
-const ROOT = path.join(__dirname, '..');
-const ORDERS_PATH = path.join(ROOT, 'data', 'orders.json');
+const { PROJECT_ROOT, dataFile } = require('../src/utils/data-paths');
+const ORDERS_PATH = dataFile('orders.json');
 const PLANS = {
-  starter: { id: 'starter', name: 'Starter', amountCents: 1000, period: 'month' },
-  pro: { id: 'pro', name: 'Pro', amountCents: 2000, period: 'month' },
-  lifetime: { id: 'lifetime', name: 'Lifetime', amountCents: 5000, period: 'once' },
+  pc: { id: 'pc', name: 'License Monthly', amountCents: 1000, period: 'month', hostMode: 'pc' },
+  starter: { id: 'starter', name: 'Hosted Monthly', amountCents: 1500, period: 'month', hostMode: 'cloud' },
+  'pc-lifetime': {
+    id: 'pc-lifetime',
+    name: 'License Lifetime',
+    amountCents: 3000,
+    period: 'once',
+    hostMode: 'pc',
+  },
+  lifetime: { id: 'lifetime', name: 'Hosted Lifetime', amountCents: 4500, period: 'once', hostMode: 'cloud' },
+  // Legacy aliases
+  pro: { id: 'starter', name: 'Hosted Monthly', amountCents: 1500, period: 'month', hostMode: 'cloud' },
 };
 
 const CARD_FIELD_RE =
@@ -23,7 +32,7 @@ const CARD_FIELD_RE =
 let stripeClient = null;
 
 function loadEnvFile() {
-  const envPath = path.join(ROOT, '.env');
+  const envPath = path.join(PROJECT_ROOT, '.env');
   if (!fs.existsSync(envPath)) return;
   try {
     const raw = fs.readFileSync(envPath, 'utf8');

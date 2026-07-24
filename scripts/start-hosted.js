@@ -1,9 +1,11 @@
 'use strict';
 
 /**
- * Railway/Render entrypoint.
+ * Railway/Render entrypoint (Pro / paid bot + website).
  * Website listens on THIS process (required for healthchecks).
- * Discord bot runs as a child when DISCORD_TOKEN is set.
+ * Discord bot (index.js) runs as a child when DISCORD_TOKEN is set.
+ *
+ * Free bot (index-free.js / OUGI_EDITION=free) is local/TikTok only — not started here.
  */
 
 const { spawn } = require('child_process');

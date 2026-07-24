@@ -12,6 +12,7 @@
   const panelCard = document.getElementById('panelCard');
   const panelCrypto = document.getElementById('panelCrypto');
   const panelGift = document.getElementById('panelGift');
+  const panelPaypal = document.getElementById('panelPaypal');
   const cryptoList = document.getElementById('cryptoList');
   const giftType = document.getElementById('giftType');
   const giftBuyLink = document.getElementById('giftBuyLink');
@@ -78,16 +79,43 @@
       feeLine.hidden = true;
       amountLabel.textContent = `${money(base)}${periodTxt}`;
     }
+    const paypalAmt = document.getElementById('paypalAmountLabel');
+    if (paypalAmt) paypalAmt.textContent = `${money(base)}${periodTxt}`;
+  }
+
+  function paypalEmail() {
+    return String(cfg.paypal?.email || '').trim().toLowerCase();
+  }
+
+  function refreshPaypalUI() {
+    const email = paypalEmail();
+    const note = document.getElementById('paypalNote');
+    const emailLabel = document.getElementById('paypalEmailLabel');
+    const openBtn = document.getElementById('paypalOpen');
+    if (emailLabel) emailLabel.textContent = email || 'Not configured';
+    if (note && cfg.paypal?.note) note.textContent = cfg.paypal.note;
+    if (openBtn) {
+      if (email) {
+        // Buyer copies email → Send in PayPal app / site
+        openBtn.href = 'https://www.paypal.com/myaccount/transfer/homepage';
+        openBtn.hidden = false;
+      } else {
+        openBtn.hidden = true;
+      }
+    }
+    refreshAmount();
   }
 
   function setMethodUI() {
     const labels = {
-      card: 'Card / Apple Pay',
+      card: 'Card',
+      paypal: 'PayPal',
       giftcard: 'Gift card',
       crypto: 'Crypto',
     };
     const processors = {
       card: 'Stripe',
+      paypal: 'PayPal',
       giftcard: 'Official gift card stores',
       crypto: 'On-chain transfer',
     };
@@ -96,7 +124,9 @@
     panelCard.hidden = method !== 'card';
     panelGift.hidden = method !== 'giftcard';
     panelCrypto.hidden = method !== 'crypto';
+    if (panelPaypal) panelPaypal.hidden = method !== 'paypal';
     refreshAmount();
+    if (method === 'paypal') refreshPaypalUI();
   }
 
   function giftBuyUrl(card, planId) {
@@ -155,7 +185,13 @@
       amount: extra.amount != null ? extra.amount : method === 'giftcard' ? total : base,
       method:
         extra.method ||
-        (method === 'card' ? 'Card / Apple Pay' : method === 'giftcard' ? 'Gift card' : 'Crypto'),
+        (method === 'card'
+          ? 'Card'
+          : method === 'paypal'
+            ? 'PayPal'
+            : method === 'giftcard'
+              ? 'Gift card'
+              : 'Crypto'),
       buyer: extra.buyer || account?.discord || '—',
       cardLast4: extra.cardLast4 || null,
       cardBrand: extra.cardBrand || null,
@@ -276,6 +312,8 @@
     document.getElementById('payEmail').value = user.email || '';
     document.getElementById('payDiscord').value = user.discord || '';
     document.getElementById('cryptoDiscord').value = user.discord || '';
+    const sender = document.getElementById('paypalSenderEmail');
+    if (sender && !sender.value && user.email) sender.value = user.email;
     document.getElementById('payAccountLabel').textContent =
       `Signed in as ${user.email} · Discord: ${user.discord}`;
   }
@@ -317,6 +355,7 @@
   setMethodUI();
   planSelect.addEventListener('change', () => {
     refreshGiftUI();
+    refreshPaypalUI();
     updateElementsAmount();
   });
   giftType.addEventListener('change', refreshGiftUI);
@@ -330,6 +369,96 @@
       });
       setMethodUI();
     });
+  });
+
+  refreshPaypalUI();
+  document.getElementById('paypalCopy')?.addEventListener('click', () => {
+    const email = paypalEmail();
+    if (email) ougiCopy(email);
+  });
+
+  document.getElementById('paypalNotify')?.addEventListener('click', async () => {
+    const status = document.getElementById('paypalStatus');
+    if (!account) {
+      status.className = 'status show err';
+      status.textContent = 'Sign in before paying.';
+      return;
+    }
+    const email = paypalEmail();
+    if (!email) {
+      status.className = 'status show err';
+      status.textContent = 'PayPal is not configured.';
+      return;
+    }
+    const confirmed = document.getElementById('paypalFafConfirm');
+    if (confirmed && !confirmed.checked) {
+      status.className = 'status show err';
+      status.textContent = 'Check the box: you must send as Friends & Family.';
+      return;
+    }
+    const senderEmail = document.getElementById('paypalSenderEmail')?.value.trim() || '';
+    if (!senderEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(senderEmail)) {
+      status.className = 'status show err';
+      status.textContent = 'Enter the PayPal email you sent the money from.';
+      return;
+    }
+    const tx = document.getElementById('paypalTx')?.value.trim() || '';
+    status.className = 'status show';
+    status.textContent = 'Submitting for staff approval…';
+    const plan = currentPlan();
+    try {
+      await getCsrf();
+      const claimRes = await fetch('/api/pay/paypal-claim', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+        body: JSON.stringify({
+          csrf,
+          planId: plan?.id,
+          paypalSenderEmail: senderEmail,
+          transactionId: tx || undefined,
+        }),
+      });
+      const claimJson = await claimRes.json().catch(() => ({}));
+      if (!claimRes.ok) {
+        throw new Error(claimJson.message || 'Could not submit claim');
+      }
+      const orderId = claimJson.claim?.orderId || 'PP' + Date.now().toString(36).toUpperCase();
+      await openSupportChat({
+        orderId,
+        planId: plan?.id,
+        planName: plan?.name,
+        amount: plan?.price,
+        method: 'PayPal (Friends & Family)',
+        paypalSenderEmail: senderEmail,
+        transactionId: tx || undefined,
+      });
+      await ougiSendForm(
+        {
+          type: 'paypal_paid',
+          plan: plan?.id,
+          planName: plan?.name,
+          amount: plan?.price,
+          discord: account.discord,
+          email: account.email,
+          paypalTo: email,
+          paypalFrom: senderEmail,
+          txid: tx || null,
+          claimId: claimJson.claim?.id,
+          friendsAndFamily: true,
+        },
+        `Ougi PayPal F&F from ${senderEmail} — ${plan?.name || 'plan'}`
+      );
+      goReceipt({
+        buyer: account.discord,
+        method: 'PayPal (Friends & Family)',
+        orderId,
+        amount: plan?.price,
+      });
+    } catch (err) {
+      status.classList.add('err');
+      status.textContent = err.message || 'Failed';
+    }
   });
 
   cryptoList.innerHTML = (cfg.crypto || [])

@@ -41,8 +41,9 @@
         };
         return `<tr>
         <td><strong>${esc(g.label)}</strong></td>
+        <td>${link('pc')}</td>
         <td>${link('starter')}</td>
-        <td>${link('pro')}</td>
+        <td>${link('pc-lifetime')}</td>
         <td>${link('lifetime')}</td>
       </tr>`;
       })

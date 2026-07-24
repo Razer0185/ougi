@@ -1,0 +1,15 @@
+# PayPal API keys — put your Live Client ID on line 1, Secret on line 2.
+# Get them: https://developer.paypal.com/dashboard/applications
+# Enable "Transaction Search" on the app. Do not commit this file.
+#
+# Format A (easiest):
+#   YOUR_CLIENT_ID_HERE
+#   YOUR_CLIENT_SECRET_HERE
+#
+# Format B:
+#   CLIENT_ID=...
+#   CLIENT_SECRET=...
+#   MODE=live
+
+PASTE_CLIENT_ID_HERE
+PASTE_CLIENT_SECRET_HERE

@@ -12,7 +12,8 @@ function applyChrome(embed, guildId, options = {}) {
   embed.setColor(theme.color).setTimestamp();
 
   if (!options.author && options.branded !== false) {
-    embed.setAuthor({ name: 'Ougi' });
+    // Theme shows in the author line so .theme visibly updates the panel name
+    embed.setAuthor({ name: `${theme.emoji} ★ Ougi · ${theme.label}` });
   } else if (options.author) {
     embed.setAuthor(options.author);
   }
@@ -71,19 +72,26 @@ function infoEmbed(guildId, title, description) {
 }
 
 function panelEmbed(guildId, client, page = 0) {
-  const { PANEL_PAGES } = require('../ui/components');
-  const total = PANEL_PAGES.length;
+  const { getPanelPages } = require('../ui/components');
+  const { isFreeEdition } = require('./edition');
+  const pages = getPanelPages();
+  const total = pages.length;
   const safePage = Math.max(0, Math.min(page, total - 1));
-  const pageData = PANEL_PAGES[safePage];
+  const pageData = pages[safePage];
   const prefix = require('./store').getGuildPrefix(guildId);
 
   const actionLines = pageData.buttons.map((b) => `**${b.label}** - ${b.hint || 'open'}`).join('\n');
+  const freeNote = isFreeEdition()
+    ? '\n\n_**Ougi Free** — not all features are available. Free includes Community layout + tickets; upgrade to Pro for role packs, extra templates, honeypot, levels, AI, and more._'
+    : '';
 
   return baseEmbed(guildId, {
-    title: pageData.title,
-    description: `${pageData.blurb}\n\n${actionLines}\n\nUse the buttons below. Prefix is \`${prefix}\`.`,
+    title: isFreeEdition() ? `${pageData.title} · Free` : pageData.title,
+    description: `${pageData.blurb}\n\n${actionLines}\n\nUse the buttons below. Prefix is \`${prefix}\`.${freeNote}`,
     thumbnail: client?.user?.displayAvatarURL({ size: 256 }),
-    footer: `Page ${safePage + 1} of ${total}`,
+    footer: isFreeEdition()
+      ? `Page ${safePage + 1} of ${total} · Free trial`
+      : `Page ${safePage + 1} of ${total}`,
   });
 }
 

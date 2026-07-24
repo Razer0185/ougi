@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Staff — Ougi</title>
   <meta http-equiv="Cache-Control" content="no-store" />
-  <link rel="stylesheet" href="styles.css?v=20260723d" />
+  <link rel="stylesheet" href="styles.css?v=20260723vis" />
 </head>
 <body>
   <header class="topbar">
-    <a class="logo" href="index.html">Ougi</a>
+    <a class="logo" href="index.html">Ougi<span>.</span></a>
     <div class="topbar-actions">
       <button class="theme-toggle" type="button" data-theme-toggle><span data-theme-label>Light</span></button>
       <button class="btn tiny ghost" type="button" id="adminLogout">Log out</button>
@@ -18,11 +18,11 @@
 
   <main class="shell">
     <h1 class="page-title">Staff inbox</h1>
-    <p class="page-sub">Password in data/ADMIN_PASSWORD_ONCE.txt on first run — delete after saving.</p>
+    <p class="page-sub" id="loginHint">Sign in with your admin email and password.</p>
 
     <div id="loginGate" class="block" style="max-width:420px">
-      <label class="field">Admin password<input id="adminPass" type="password" autocomplete="current-password" minlength="8" /></label>
-      <label class="field">Display name<input id="staffName" maxlength="32" value="Staff" autocomplete="nickname" /></label>
+      <label class="field">Admin email<input id="adminEmail" type="email" autocomplete="username" maxlength="120" /></label>
+      <label class="field">Password<input id="adminPass" type="password" autocomplete="current-password" minlength="8" /></label>
       <button class="btn primary" type="button" id="adminLogin">Open inbox</button>
       <p class="status" id="loginStatus"></p>
     </div>
@@ -35,14 +35,54 @@
             <h3 id="activeTitle">Select a chat</h3>
             <span id="activeMeta">—</span>
           </div>
+          <span class="note" id="staffWho"></span>
         </div>
         <div class="chat-messages" id="adminMessages"></div>
         <div class="chat-compose">
           <input id="adminInput" maxlength="1000" placeholder="Reply…" autocomplete="off" />
           <button class="btn primary tiny" type="button" id="adminSend">Send</button>
         </div>
+        <details class="block" style="margin:10px;border-width:1px" open>
+          <summary><strong>PayPal claims</strong> (match sender email)</summary>
+          <p class="note" id="paypalApiHint" style="margin-top:8px"></p>
+          <div id="paypalClaims" class="paypal-claims"></div>
+          <button class="btn tiny ghost" type="button" id="paypalRefresh" style="margin-top:8px">Refresh claims</button>
+        </details>
+        <details class="block" id="freeBotPanel" style="margin:10px;border-width:1px" hidden>
+          <summary><strong>Free bot (TikTok trial)</strong></summary>
+          <p class="note" style="margin-top:8px">
+            Put the free token in <code>token-free.txt</code> and run <code>npm run start:free</code>.
+            HQ server <code>1521568250473873438</code> is never left.
+          </p>
+          <p class="note" id="freeBotStatus">Loading…</p>
+          <label class="field">Trial days (1–30)<input id="freeTrialDays" type="number" min="1" max="30" value="3" /></label>
+          <label class="field">Promo Discord invite<input id="freeDiscordInvite" type="url" placeholder="https://discord.gg/…" /></label>
+          <label class="field">Product / site URL<input id="freeProductUrl" type="url" placeholder="https://…" /></label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+            <button class="btn tiny ghost" type="button" id="freeBotRefresh">Refresh</button>
+            <button class="btn tiny primary" type="button" id="freeBotSave">Save promo</button>
+            <button class="btn tiny" type="button" id="freeBotLeaveAll" style="background:#ff5c5c;color:#fff;border:0">Leave all free servers</button>
+          </div>
+          <p class="status" id="freeBotMsg"></p>
+        </details>
+        <details class="block" id="staffPanel" style="margin:10px;border-width:1px" hidden>
+          <summary><strong>Admin accounts</strong></summary>
+          <p class="note" style="margin-top:8px">Add staff who can approve PayPal claims and reply in chat.</p>
+          <div id="staffList" class="paypal-claims"></div>
+          <label class="field">Email<input id="newStaffEmail" type="email" maxlength="120" autocomplete="off" /></label>
+          <label class="field">Display name<input id="newStaffName" maxlength="32" autocomplete="off" /></label>
+          <label class="field">Temp password (12+)<input id="newStaffPass" type="password" minlength="12" autocomplete="new-password" /></label>
+          <label class="field">Role
+            <select id="newStaffRole">
+              <option value="staff">Staff</option>
+              <option value="admin">Admin</option>
+            </select>
+          </label>
+          <button class="btn tiny primary" type="button" id="staffAdd">Add account</button>
+          <p class="status" id="staffStatus"></p>
+        </details>
         <details class="block" style="margin:10px;border-width:1px">
-          <summary>Change password</summary>
+          <summary>Change my password</summary>
           <label class="field">Current<input id="pwCurrent" type="password" autocomplete="current-password" /></label>
           <label class="field">New (12+)<input id="pwNew" type="password" autocomplete="new-password" minlength="12" /></label>
           <button class="btn tiny ghost" type="button" id="pwChange">Update</button>
@@ -52,9 +92,9 @@
     </div>
   </main>
 
-  <script src="config.js?v=20260723d"></script>
-  <script src="theme.js?v=20260723d"></script>
-  <script src="site.js?v=20260723d"></script>
-  <script src="admin-chat.js?v=20260723d"></script>
+  <script src="config.js?v=20260723vis"></script>
+  <script src="theme.js?v=20260723vis"></script>
+  <script src="site.js?v=20260723vis"></script>
+  <script src="admin-chat.js?v=20260723adm"></script>
 </body>
 </html>

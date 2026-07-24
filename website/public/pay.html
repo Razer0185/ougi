@@ -4,16 +4,18 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Pay — Ougi</title>
-  <link rel="stylesheet" href="styles.css?v=20260723f" />
+  <link rel="stylesheet" href="styles.css?v=20260723vis" />
   <script src="https://js.stripe.com/v3/" defer></script>
 </head>
 <body>
   <header class="topbar">
-    <a class="logo" href="index.html">Ougi</a>
+    <a class="logo" href="index.html">Ougi<span>.</span></a>
     <nav>
       <a href="index.html">Home</a>
       <a href="pricing.html">Prices</a>
+      <a href="dashboard.html">Dashboard</a>
       <a class="on" href="pay.html">Pay</a>
+      <a href="host.html">Host</a>
       <a href="account.html">Account</a>
     </nav>
     <div class="topbar-actions">
@@ -24,7 +26,15 @@
 
   <main class="shell">
     <h1 class="page-title">Checkout</h1>
-    <p class="page-sub">Sign in, choose a plan, pay with card / Apple Pay, gift card, or crypto.</p>
+    <p class="page-sub">Sign in, choose a plan, pay with card, PayPal, gift card, or crypto.</p>
+
+    <div class="block apple-pay-note" style="margin-bottom:20px">
+      <strong>Want to pay with Apple Pay?</strong>
+      <p class="muted" style="margin:8px 0 0">
+        Join the Discord and ask staff — we’ll take care of it there:
+        <a href="https://discord.gg/AMaPQfQXGb" target="_blank" rel="noopener">discord.gg/AMaPQfQXGb</a>
+      </p>
+    </div>
 
     <div id="payAuthGate" class="block" hidden>
       <h2>Account required</h2>
@@ -43,8 +53,9 @@
         <div class="summary-line"><span>Method</span><strong id="methodLabel">Card</strong></div>
         <div class="summary-line"><span>Via</span><strong id="processorLabel">Stripe</strong></div>
         <ul class="pay-trust">
-          <li>All methods: Starter $10 · Pro $20 · Lifetime $50</li>
+          <li>Monthly $10–$15 · Lifetime $30–$45</li>
           <li>Card data never stored on Ougi</li>
+          <li>Apple Pay → Discord (link above)</li>
           <li>Chat opens after you submit</li>
         </ul>
         <p class="note" id="setupHint" hidden></p>
@@ -52,7 +63,8 @@
 
       <div class="pay-main">
         <div class="method-tabs tabs" role="tablist">
-          <button class="method-tab tab on active" type="button" data-method="card">Card / Apple Pay</button>
+          <button class="method-tab tab on active" type="button" data-method="card">Card</button>
+          <button class="method-tab tab" type="button" data-method="paypal">PayPal</button>
           <button class="method-tab tab" type="button" data-method="giftcard">Gift card</button>
           <button class="method-tab tab" type="button" data-method="crypto">Crypto</button>
         </div>
@@ -64,13 +76,59 @@
             <label class="field">Email<input name="email" id="payEmail" type="email" required readonly /></label>
             <label class="field">Discord<input name="discord" id="payDiscord" required readonly /></label>
             <label class="field">Server name / ID<input name="server" maxlength="100" placeholder="Optional" /></label>
-            <div class="pay-section-title">Card / Apple Pay</div>
-            <p class="note" style="margin-top:0">Secure fields via Stripe. Apple Pay shows on supported devices when enabled.</p>
+            <div class="pay-section-title">Card</div>
+            <p class="note" style="margin-top:0">
+              Secure card fields via Stripe.
+              Prefer <strong>Apple Pay</strong>? Join
+              <a href="https://discord.gg/AMaPQfQXGb" target="_blank" rel="noopener">discord.gg/AMaPQfQXGb</a>
+              and ask staff.
+            </p>
             <div id="paymentElement" class="stripe-box"><p class="note" id="stripeLoading">Loading…</p></div>
             <div id="stripeSetup" class="stripe-setup" hidden></div>
             <button class="btn primary" type="submit" id="paySubmit" disabled>Pay now</button>
             <p class="status" id="cardStatus"></p>
           </form>
+        </div>
+
+        <div id="panelPaypal" hidden>
+          <div class="block" style="margin:0 0 14px;border-color:var(--warn);background:var(--accent-soft)">
+            <strong style="color:var(--warn);text-transform:uppercase;letter-spacing:0.04em;font-size:0.85rem">
+              Required: Friends &amp; Family only
+            </strong>
+            <p class="muted" style="margin:8px 0 0">
+              Send payment as <strong>Friends &amp; Family</strong> — <strong>not</strong> Goods &amp; Services.
+            </p>
+            <p style="margin:10px 0 0;font-weight:700">
+              If you do not send as Friends &amp; Family, you will <u>not</u> receive the product and the money
+              <u>cannot</u> be refunded.
+            </p>
+          </div>
+          <p class="note" style="margin-top:0" id="paypalNote">
+            Send the exact plan amount as Friends &amp; Family, then enter the PayPal email you sent from so staff can match it.
+          </p>
+          <div class="summary-line"><span>Send</span><strong id="paypalAmountLabel">$0</strong></div>
+          <div class="summary-line"><span>PayPal email</span><strong id="paypalEmailLabel">—</strong></div>
+          <div class="gift-actions" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px">
+            <button class="btn ghost" type="button" id="paypalCopy">Copy email</button>
+            <a class="btn primary" id="paypalOpen" href="#" target="_blank" rel="noopener">Open PayPal</a>
+          </div>
+          <label class="field" style="margin-top:14px">Your PayPal email (the one you sent from) <span style="color:var(--danger)">*</span>
+            <input id="paypalSenderEmail" type="email" maxlength="120" placeholder="you@email.com" autocomplete="email" required />
+          </label>
+          <p class="note" style="margin-top:6px">
+            Staff match this address in PayPal → Activity. Use the same email that appears on the payment.
+          </p>
+          <label class="field" style="margin-top:8px">Transaction ID <span class="opt">(optional)</span>
+            <input id="paypalTx" maxlength="24" placeholder="e.g. 5TY05013RG002845M" autocomplete="off" />
+          </label>
+          <label class="field" style="margin-top:8px">
+            <span style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
+              <input type="checkbox" id="paypalFafConfirm" required style="width:auto;margin-top:3px" />
+              <span>I confirm I sent (or will send) as <strong>Friends &amp; Family</strong>, not Goods &amp; Services. I understand that if I don’t, I won’t receive the product and the money cannot be refunded.</span>
+            </span>
+          </label>
+          <button class="btn primary" type="button" id="paypalNotify" style="margin-top:12px">I paid — notify staff</button>
+          <p class="status" id="paypalStatus"></p>
         </div>
 
         <div id="panelGift" hidden>
@@ -101,9 +159,9 @@
     <span><a href="pricing.html">Prices</a></span>
   </footer>
 
-  <script src="config.js?v=20260723f"></script>
-  <script src="theme.js?v=20260723f"></script>
-  <script src="site.js?v=20260723f"></script>
-  <script src="pay.js?v=20260723f"></script>
+  <script src="config.js?v=20260723vis"></script>
+  <script src="theme.js?v=20260723vis"></script>
+  <script src="site.js?v=20260723vis"></script>
+  <script src="pay.js?v=20260723ppmail"></script>
 </body>
 </html>

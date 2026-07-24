@@ -1,4 +1,5 @@
 token.txt
+token-free.txt
 .env
 node_modules/
 /data/
@@ -11,3 +12,23 @@ invite-url.txt
 /data/admin-sessions.json
 /data/csrf-tokens.json
 /data/chats.json
+
+you-api-key.txt
+YDC_API_KEY.txt
+paypal-api.txt
+
+# Host app binaries / customer package
+/Ougi/
+/OugiHost.exe
+/OugiHost.dat
+/WebView2Loader.dll
+/OugiHost.exe.WebView2/
+/release/
+/desktop/dist/
+/desktop/.cache/
+/desktop/OugiHost/bin/
+/desktop/OugiHost/obj/
+/desktop/OugiHost/Resources/OugiRuntime.dat
+/desktop/OugiHost/Resources/RuntimeVersion.txt
+/host/data/
+/agent/

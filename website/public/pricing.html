@@ -4,15 +4,17 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Prices — Ougi</title>
-  <link rel="stylesheet" href="styles.css?v=20260723f" />
+  <link rel="stylesheet" href="styles.css?v=20260723vis" />
 </head>
 <body>
   <header class="topbar">
-    <a class="logo" href="index.html">Ougi</a>
+    <a class="logo" href="index.html">Ougi<span>.</span></a>
     <nav>
       <a href="index.html">Home</a>
       <a class="on" href="pricing.html">Prices</a>
+      <a href="dashboard.html">Dashboard</a>
       <a href="pay.html">Pay</a>
+      <a href="host.html">Host</a>
       <a href="account.html">Account</a>
     </nav>
     <div class="topbar-actions">
@@ -23,20 +25,38 @@
 
   <main class="shell">
     <h1 class="page-title">Prices</h1>
-    <p class="page-sub">USD plans: Starter $10 · Pro $20 · Lifetime $50.</p>
+    <p class="page-sub">License (you host) or Hosted (we host) — <strong>$10–$15/month</strong> or <strong>$30–$45 lifetime</strong>. No source code.</p>
+
+    <div class="block apple-pay-note" style="margin-bottom:24px">
+      <strong>Want to pay with Apple Pay?</strong>
+      <p class="muted" style="margin:8px 0 0">
+        Join the Discord and ask staff — we’ll handle Apple Pay there:
+        <a href="https://discord.gg/AMaPQfQXGb" target="_blank" rel="noopener">discord.gg/AMaPQfQXGb</a>
+      </p>
+    </div>
 
     <div class="plans" id="planGrid"></div>
 
     <div class="block">
-      <h2>Gift card amounts + buy links</h2>
+      <h2>How access works</h2>
+      <p class="muted">
+        <strong>Hosted:</strong> after payment we whitelist your server and you invite our bot.
+        <strong>License:</strong> sign into Ougi Host, start the bot on your machine while the license is active.
+        We do not ship source code either way.
+      </p>
+    </div>
+
+    <div class="block">
+      <h2>Gift card amounts</h2>
       <div class="table-wrap">
         <table class="matrix" id="giftMatrix">
           <thead>
             <tr>
               <th>Type</th>
-              <th>Starter ($10)</th>
-              <th>Pro ($20)</th>
-              <th>Lifetime ($50)</th>
+              <th>License $10/mo</th>
+              <th>Hosted $15/mo</th>
+              <th>License $30 life</th>
+              <th>Hosted $45 life</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -44,17 +64,17 @@
       </div>
     </div>
 
-    <p style="margin-top:20px"><a class="btn primary" href="pay.html">Go to checkout</a></p>
+    <p style="margin-top:24px"><a class="btn primary" href="pay.html">Go to checkout</a></p>
   </main>
 
   <footer class="foot">
     <strong>Ougi</strong>
-    <span><a href="pay.html">Checkout</a></span>
+    <span><a href="pay.html">Checkout</a> · <a href="host.html">Host</a></span>
   </footer>
 
-  <script src="config.js?v=20260723f"></script>
-  <script src="theme.js?v=20260723f"></script>
-  <script src="site.js?v=20260723f"></script>
-  <script src="pricing.js?v=20260723f"></script>
+  <script src="config.js?v=20260723vis"></script>
+  <script src="theme.js?v=20260723vis"></script>
+  <script src="site.js?v=20260723vis"></script>
+  <script src="pricing.js?v=20260723vis"></script>
 </body>
 </html>

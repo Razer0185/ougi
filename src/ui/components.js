@@ -1,6 +1,7 @@
 const {
   ActionRowBuilder,
   ButtonBuilder,
+  ButtonStyle,
   StringSelectMenuBuilder,
   UserSelectMenuBuilder,
   ModalBuilder,
@@ -11,7 +12,13 @@ const {
 } = require('discord.js');
 const { getTheme, themeButtonStyle } = require('../utils/theme');
 const { loadGuild } = require('../utils/store');
-const { PANEL_PAGES } = require('./panel-pages');
+const { baseEmbed } = require('../utils/embeds');
+const { PANEL_PAGES: ALL_PANEL_PAGES } = require('./panel-pages');
+const { freePanelPages } = require('../utils/edition');
+
+function getPanelPages() {
+  return freePanelPages(ALL_PANEL_PAGES);
+}
 
 function guildTheme(guildId) {
   return getTheme(guildId ? loadGuild(guildId).theme : 'blue');
@@ -31,42 +38,76 @@ function styleFor(_kind, guildId) {
   return accentStyle(guildId);
 }
 
+function withThemeEmoji(button, guildId) {
+  const theme = guildTheme(guildId);
+  if (theme.emoji) {
+    try {
+      button.setEmoji(theme.emoji);
+    } catch {
+      /* ignore */
+    }
+  }
+  return button;
+}
+
 function panelNav(page, total, guildId) {
-  const navStyle = themeNavStyle(guildId);
+  // Same style as action buttons — do NOT disable the page chip (Discord greys disabled buttons)
+  const style = accentStyle(guildId);
   const row = new ActionRowBuilder();
   if (page > 0) {
     row.addComponents(
-      new ButtonBuilder().setCustomId(`panelnav:prev:${page}`).setLabel('Back').setStyle(navStyle)
+      withThemeEmoji(
+        new ButtonBuilder().setCustomId(`panelnav:prev:${page}`).setLabel('Back').setStyle(style),
+        guildId
+      )
     );
   }
   row.addComponents(
-    new ButtonBuilder()
-      .setCustomId('panelnav:noop')
-      .setLabel(`${page + 1} / ${total}`)
-      .setStyle(navStyle)
-      .setDisabled(true)
+    withThemeEmoji(
+      new ButtonBuilder()
+        .setCustomId('panelnav:noop')
+        .setLabel(`${page + 1} / ${total}`)
+        .setStyle(style),
+      guildId
+    )
   );
   if (page < total - 1) {
     row.addComponents(
-      new ButtonBuilder().setCustomId(`panelnav:next:${page}`).setLabel('Next').setStyle(navStyle)
+      withThemeEmoji(
+        new ButtonBuilder().setCustomId(`panelnav:next:${page}`).setLabel('Next').setStyle(style),
+        guildId
+      )
     );
   }
   return row;
 }
 
 function panelComponents(guildId, page = 0) {
-  const total = PANEL_PAGES.length;
+  const pages = getPanelPages();
+  const total = pages.length;
   const safePage = Math.max(0, Math.min(page, total - 1));
-  const pageData = PANEL_PAGES[safePage];
+  const pageData = pages[safePage];
   const style = accentStyle(guildId);
+  const rows = [];
 
-  const actionRow = new ActionRowBuilder().addComponents(
-    ...pageData.buttons.map((b) =>
-      new ButtonBuilder().setCustomId(`panel:${b.id}`).setLabel(b.label).setStyle(style)
-    )
-  );
+  // Discord: max 5 buttons per row, max 5 rows (leave 1 for nav)
+  const buttons = pageData.buttons || [];
+  for (let i = 0; i < buttons.length && rows.length < 4; i += 5) {
+    const chunk = buttons.slice(i, i + 5);
+    rows.push(
+      new ActionRowBuilder().addComponents(
+        ...chunk.map((b) =>
+          withThemeEmoji(
+            new ButtonBuilder().setCustomId(`panel:${b.id}`).setLabel(b.label).setStyle(style),
+            guildId
+          )
+        )
+      )
+    );
+  }
 
-  return [actionRow, panelNav(safePage, total, guildId)];
+  rows.push(panelNav(safePage, total, guildId));
+  return rows;
 }
 
 /** @deprecated use panelComponents(guildId, page) */
@@ -169,22 +210,165 @@ function nukeChannelPick() {
 }
 
 function templateSelect(kind, items) {
+  const options = items.slice(0, 25).map((t) => ({
+    label: String(t.name || t.id).slice(0, 100),
+    value: t.id,
+    description: String(t.description || t.preview || t.id).slice(0, 100),
+  }));
   return new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId(`template:${kind}`)
-      .setPlaceholder(`Choose a ${kind} template`)
-      .addOptions(
-        items.map((t) => ({
-          label: t.name,
-          value: t.id,
-          description: t.description.slice(0, 100),
-        }))
-      )
+      .setPlaceholder(kind === 'server' ? 'Choose channels & categories…' : 'Choose a role template…')
+      .addOptions(options)
   );
 }
 
+function templateHomeComponents(guildId) {
+  const { isFreeEdition } = require('../utils/edition');
+  const style = accentStyle(guildId);
+  if (isFreeEdition()) {
+    return [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('template:menu:server')
+          .setLabel('Community layout (1 template)')
+          .setStyle(style),
+        new ButtonBuilder()
+          .setCustomId('template:menu:end')
+          .setLabel('Fix End Closer')
+          .setStyle(ButtonStyle.Secondary)
+      ),
+    ];
+  }
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('template:menu:server')
+        .setLabel('Channels & Categories')
+        .setStyle(style),
+      new ButtonBuilder()
+        .setCustomId('template:menu:roles')
+        .setLabel('Roles')
+        .setStyle(style),
+      new ButtonBuilder()
+        .setCustomId('template:menu:end')
+        .setLabel('Fix End Closer')
+        .setStyle(ButtonStyle.Secondary)
+    ),
+  ];
+}
+
+function templateHomePayload(guildId) {
+  const { isFreeEdition } = require('../utils/edition');
+  if (isFreeEdition()) {
+    return {
+      embeds: [
+        baseEmbed(guildId, {
+          title: 'Templates · Free',
+          description:
+            '**Ougi Free** includes **one** server layout only (**Community Hub**).\n\n' +
+            '→ Includes **tickets**: `#create-ticket` panel + **Buyer** priority tickets\n' +
+            '→ Role templates are **Pro-only**\n' +
+            '→ Extra layouts (gaming, aesthetic, creator…) are **Pro-only**\n\n' +
+            'Use **Community layout** below, or **Fix End Closer**.',
+        }),
+      ],
+      components: templateHomeComponents(guildId),
+    };
+  }
+  return {
+    embeds: [
+      baseEmbed(guildId, {
+        title: 'Templates',
+        description:
+          'Pick what you want to build:\n\n' +
+          '→ **Channels & Categories** — full server layouts (community, aesthetic ★, gaming…)\n' +
+          '→ **Roles** — staff ladders and rank packs\n' +
+          '→ **Fix End Closer** — put `╰──── End 🔚` at the bottom\n\n' +
+          'Then choose a template from the dropdown.',
+      }),
+    ],
+    components: templateHomeComponents(guildId),
+  };
+}
+
+function templatePickPayload(guildId, kind) {
+  const { SERVER_TEMPLATES, ROLE_TEMPLATES } = require('../data/templates');
+  const { isFreeEdition, freeServerTemplates } = require('../utils/edition');
+  const isServer = kind === 'server';
+  if (!isServer && isFreeEdition()) {
+    return templateHomePayload(guildId);
+  }
+  const items = isServer
+    ? freeServerTemplates(SERVER_TEMPLATES)
+    : ROLE_TEMPLATES;
+  return {
+    embeds: [
+      baseEmbed(guildId, {
+        title: isServer
+          ? isFreeEdition()
+            ? 'Templates · Community (Free)'
+            : 'Templates · Channels & Categories'
+          : 'Templates · Roles',
+        description:
+          (isServer
+            ? isFreeEdition()
+              ? 'Free includes **Community Hub** only. Select it, then **Apply** or **Wipe + Apply**.'
+              : 'Select a **server layout** from the dropdown. You’ll get a preview, then **Apply** or **Wipe + Apply**.'
+            : 'Select a **role pack** from the dropdown. You’ll get a preview, then **Apply**.') +
+          `\n\n_${items.length} template(s) available._`,
+      }),
+    ],
+    components: [
+      templateSelect(isServer ? 'server' : 'roles', items),
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('template:menu:home')
+          .setLabel('Back')
+          .setStyle(ButtonStyle.Secondary)
+      ),
+    ],
+  };
+}
+
+function templateApplyComponents(kind, id, _guildId) {
+  if (kind === 'server') {
+    return [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`template:apply:server:${id}:keep`)
+          .setLabel('Apply')
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId(`template:apply:server:${id}:wipe`)
+          .setLabel('Wipe + Apply')
+          .setStyle(ButtonStyle.Danger),
+        new ButtonBuilder()
+          .setCustomId('template:menu:server')
+          .setLabel('Back')
+          .setStyle(ButtonStyle.Secondary)
+      ),
+    ];
+  }
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`template:apply:roles:${id}`)
+        .setLabel('Apply Role Template')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId('template:menu:roles')
+        .setLabel('Back')
+        .setStyle(ButtonStyle.Secondary)
+    ),
+  ];
+}
+
 module.exports = {
-  PANEL_PAGES,
+  get PANEL_PAGES() {
+    return getPanelPages();
+  },
+  getPanelPages,
   panelComponents,
   panelComponentsLegacy,
   userPickRow,
@@ -195,6 +379,10 @@ module.exports = {
   lockChannelPick,
   nukeChannelPick,
   templateSelect,
+  templateHomeComponents,
+  templateHomePayload,
+  templatePickPayload,
+  templateApplyComponents,
   accentStyle,
   themeNavStyle,
 };

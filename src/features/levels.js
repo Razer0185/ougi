@@ -12,11 +12,15 @@ function ensureLevels(cfg) {
       users: {},
       rewards: {},
       blacklistChannels: [],
+      voiceXpEnabled: true,
+      voiceXpPerMinute: 10,
     };
   }
   if (!cfg.levels.users) cfg.levels.users = {};
   if (!cfg.levels.rewards) cfg.levels.rewards = {};
   if (!Array.isArray(cfg.levels.blacklistChannels)) cfg.levels.blacklistChannels = [];
+  if (cfg.levels.voiceXpEnabled == null) cfg.levels.voiceXpEnabled = true;
+  if (!cfg.levels.voiceXpPerMinute) cfg.levels.voiceXpPerMinute = 10;
   return cfg;
 }
 
@@ -42,14 +46,26 @@ function getUserLevel(guildId, userId) {
   return { ...u, ...info, totalXp: u.xp || 0 };
 }
 
+function setUserXp(guildId, userId, totalXp) {
+  const cfg = ensureLevels(loadGuild(guildId));
+  const xp = Math.max(0, Math.floor(Number(totalXp) || 0));
+  cfg.levels.users[userId] = {
+    ...(cfg.levels.users[userId] || {}),
+    xp,
+    lastXp: cfg.levels.users[userId]?.lastXp || 0,
+  };
+  saveGuild(guildId, cfg);
+  return getUserLevel(guildId, userId);
+}
+
 async function handleMessageXp(message) {
   if (!message.guild || message.author.bot || !message.content) return null;
   const cfg = ensureLevels(loadGuild(message.guild.id));
   if (!cfg.levels.enabled) return null;
   if (cfg.levels.blacklistChannels.includes(message.channel.id)) return null;
-  const { getGuildPrefix } = require('../utils/store');
-  const prefix = getGuildPrefix(message.guild.id);
-  if (message.content.startsWith(prefix)) return null;
+  const { getCommandPrefixes } = require('../utils/store');
+  const prefixes = getCommandPrefixes(message.guild.id);
+  if (prefixes.some((p) => message.content.startsWith(p))) return null;
 
   const uid = message.author.id;
   const user = cfg.levels.users[uid] || { xp: 0, lastXp: 0 };
@@ -113,10 +129,86 @@ function rankEmbed(guildId, user, stats, position) {
   });
 }
 
+/** Voice presence tracking: guildId:userId -> { joinedAt, channelId } */
+const voiceSessions = new Map();
+
+function voiceKey(guildId, userId) {
+  return `${guildId}:${userId}`;
+}
+
+function shouldTrackVoice(state) {
+  if (!state.guild || !state.member || state.member.user.bot) return false;
+  if (!state.channelId) return false;
+  if (state.deaf || state.selfDeaf) return false;
+  const others = state.channel?.members?.filter((m) => !m.user.bot && m.id !== state.id);
+  if (others && others.size === 0) return false;
+  return true;
+}
+
+async function flushVoiceXp(guild, userId) {
+  const k = voiceKey(guild.id, userId);
+  const session = voiceSessions.get(k);
+  if (!session) return null;
+  voiceSessions.delete(k);
+
+  const cfg = ensureLevels(loadGuild(guild.id));
+  if (!cfg.levels.enabled || !cfg.levels.voiceXpEnabled) return null;
+
+  const minutes = Math.floor((Date.now() - session.joinedAt) / 60_000);
+  if (minutes < 1) return null;
+  const perMin = cfg.levels.voiceXpPerMinute || 10;
+  const gain = minutes * perMin;
+  const user = cfg.levels.users[userId] || { xp: 0, lastXp: 0 };
+  const before = levelFromTotalXp(user.xp || 0).level;
+  user.xp = (user.xp || 0) + gain;
+  cfg.levels.users[userId] = user;
+  saveGuild(guild.id, cfg);
+  const after = levelFromTotalXp(user.xp).level;
+
+  if (after > before) {
+    const member = await guild.members.fetch(userId).catch(() => null);
+    const rewardId = cfg.levels.rewards[String(after)];
+    if (rewardId && member) {
+      const role = guild.roles.cache.get(rewardId);
+      if (role) await member.roles.add(role).catch(() => {});
+    }
+    const chId = cfg.levels.announceChannelId;
+    const channel = chId && guild.channels.cache.get(chId);
+    if (channel) {
+      await channel
+        .send({
+          embeds: [
+            successEmbed(guild.id, 'Level Up', `🎉 <@${userId}> reached **level ${after}** (voice XP)!`),
+          ],
+        })
+        .catch(() => {});
+    }
+  }
+  return { gain, minutes, level: after };
+}
+
+async function handleVoiceXp(oldState, newState) {
+  const guild = newState.guild || oldState.guild;
+  if (!guild) return;
+  const userId = newState.id || oldState.id;
+  const k = voiceKey(guild.id, userId);
+
+  if (voiceSessions.has(k) && !shouldTrackVoice(newState)) {
+    await flushVoiceXp(guild, userId);
+  }
+  if (shouldTrackVoice(newState) && !voiceSessions.has(k)) {
+    voiceSessions.set(k, { joinedAt: Date.now(), channelId: newState.channelId });
+  } else if (shouldTrackVoice(newState) && voiceSessions.has(k)) {
+    voiceSessions.get(k).channelId = newState.channelId;
+  }
+}
+
 module.exports = {
   ensureLevels,
   getUserLevel,
+  setUserXp,
   handleMessageXp,
+  handleVoiceXp,
   leaderboard,
   rankEmbed,
   xpForLevel,

@@ -74,12 +74,16 @@ const extraCommands = {
         moderator: message.author,
         reason,
       });
+      let extra = '';
+      if (row.ladder?.action) {
+        extra = `\n→ Auto-punish: **${row.ladder.action}** (${row.ladder.warns} warns)`;
+      }
       return message.reply({
         embeds: [
           successEmbed(
             message.guild.id,
             'Warned',
-            `→ **${target.user.tag}** · Case #${row.id}\n→ ${reason}`
+            `→ **${target.user.tag}** · Case #${row.id}\n→ ${reason}${extra}`
           ),
         ],
       });
@@ -156,34 +160,98 @@ const extraCommands = {
     },
   },
 
+  tempban: {
+    description: 'Temporarily ban a member',
+    mod: true,
+    async execute(message, args) {
+      if (!message.member.permissions.has(PermissionFlagsBits.BanMembers)) {
+        return message.reply({ embeds: [errorEmbed(message.guild.id, 'Denied', 'Ban permission required.')] });
+      }
+      const { tempbanMember } = require('../features/moderation');
+      const prefix = require('../utils/store').getGuildPrefix(message.guild.id);
+      const target = await resolveMember(message.guild, args[0]);
+      const durationRaw = args.find((a, i) => i > 0 && /^\d+[smhd]?$/i.test(a));
+      if (!target || !durationRaw) {
+        return message.reply({
+          embeds: [
+            errorEmbed(
+              message.guild.id,
+              'Tempban',
+              `Usage: \`${prefix}tempban @user 7d [reason]\`\nDuration: \`30m\` \`12h\` \`7d\``
+            ),
+          ],
+        });
+      }
+      const reason = args
+        .slice(1)
+        .filter((a) => a !== durationRaw)
+        .join(' ') || 'No reason provided';
+      const ms = parseDuration(durationRaw);
+      if (!ms || ms < 60_000) {
+        return message.reply({
+          embeds: [errorEmbed(message.guild.id, 'Tempban', 'Duration must be at least 1 minute.')],
+        });
+      }
+      const row = await tempbanMember(message.guild, {
+        target,
+        moderator: message.author,
+        reason,
+        durationMs: ms,
+      });
+      return message.reply({
+        embeds: [
+          successEmbed(
+            message.guild.id,
+            'Tempbanned',
+            `→ **${target.user.tag}** until <t:${Math.floor(row.unbanAt / 1000)}:R>\n→ ${reason}`
+          ),
+        ],
+      });
+    },
+  },
+
   purge: {
-    description: 'Bulk delete messages',
+    description: 'Bulk delete messages (filters: bots|embeds|links|files|contains:text)',
     mod: true,
     async execute(message, args) {
       if (!memberHasMod(message.member)) {
         return message.reply({ embeds: [errorEmbed(message.guild.id, 'Denied', 'Mod required.')] });
       }
-      let amount = parseInt(args[0], 10);
+      let amount = 10;
       let channel = message.channel;
       let userId = message.mentions.users.first()?.id || null;
-      if (Number.isNaN(amount)) {
-        const maybeCh = await resolveChannel(message.guild, args[0]);
-        if (maybeCh) {
-          channel = maybeCh;
-          amount = parseInt(args[1], 10);
+      let filter = null;
+      let contains = null;
+      const tokens = args.filter((a) => !a.startsWith('<@'));
+      for (const t of tokens) {
+        const low = t.toLowerCase();
+        if (/^\d+$/.test(t)) amount = parseInt(t, 10);
+        else if (['bots', 'humans', 'embeds', 'links', 'attachments', 'files'].includes(low)) filter = low;
+        else if (low.startsWith('contains:')) contains = t.slice('contains:'.length);
+        else {
+          const maybeCh = await resolveChannel(message.guild, t);
+          if (maybeCh) channel = maybeCh;
         }
       }
-      if (Number.isNaN(amount)) amount = 10;
-      const deleted = await purgeMessages(channel, { amount, userId });
+      const deleted = await purgeMessages(channel, { amount, userId, filter, contains });
       await sendModLog(message.guild, {
         action: 'Purge',
         userId: message.author.id,
         userTag: message.author.tag,
         modId: message.author.id,
-        reason: `Purged ${deleted} in #${channel.name}`,
+        reason: `Purged ${deleted} in #${channel.name}${filter ? ` (${filter})` : ''}`,
       });
       const reply = await message.channel.send({
-        embeds: [successEmbed(message.guild.id, 'Purged', `Deleted **${deleted}** message(s) in ${channel}.`)],
+        embeds: [
+          successEmbed(
+            message.guild.id,
+            'Purged',
+            `Deleted **${deleted}** message(s) in ${channel}.` +
+              (filter || contains
+                ? `\nFilter: ${filter || ''}${contains ? ` contains:${contains}` : ''}`
+                : '')
+          ),
+        ],
       });
       setTimeout(() => reply.delete().catch(() => {}), 4000);
     },
@@ -428,6 +496,19 @@ const extraCommands = {
       const stats = getUserLevel(message.guild.id, target.id);
       const board = leaderboard(message.guild.id, 100);
       const pos = board.findIndex((r) => r.id === target.id) + 1 || null;
+      const { buildRankCard } = require('../features/rank-card');
+      const card = await buildRankCard({
+        guild: message.guild,
+        user: target.user,
+        stats,
+        position: pos || null,
+      }).catch(() => null);
+      if (card) {
+        return message.reply({
+          embeds: [rankEmbed(message.guild.id, target.user, stats, pos || null)],
+          files: [card],
+        });
+      }
       return message.reply({
         embeds: [rankEmbed(message.guild.id, target.user, stats, pos || null)],
       });
@@ -480,6 +561,106 @@ const extraCommands = {
         saveGuild(message.guild.id, cfg);
         return message.reply({
           embeds: [successEmbed(message.guild.id, 'Reward', `Level **${level}** → ${role}`)],
+        });
+      }
+      if (sub === 'voice') {
+        if (!memberHasAdmin(message.member)) {
+          return message.reply({ embeds: [errorEmbed(message.guild.id, 'Denied', 'Admin required.')] });
+        }
+        const mode = (args[1] || '').toLowerCase();
+        const cfg = ensureLevels(loadGuild(message.guild.id));
+        if (mode === 'on' || mode === 'off') {
+          cfg.levels.voiceXpEnabled = mode === 'on';
+          saveGuild(message.guild.id, cfg);
+          return message.reply({
+            embeds: [
+              successEmbed(message.guild.id, 'Leveling', `Voice XP is **${mode.toUpperCase()}**.`),
+            ],
+          });
+        }
+        return message.reply({
+          embeds: [
+            baseEmbed(message.guild.id, {
+              title: 'Voice XP',
+              description:
+                `Status: **${cfg.levels.voiceXpEnabled ? 'ON' : 'OFF'}** · ` +
+                `**${cfg.levels.voiceXpPerMinute || 10}** XP / minute in voice\n` +
+                '`levels voice on|off`',
+            }),
+          ],
+        });
+      }
+      if (sub === 'blacklist' || sub === 'ignore') {
+        if (!memberHasAdmin(message.member)) {
+          return message.reply({ embeds: [errorEmbed(message.guild.id, 'Denied', 'Admin required.')] });
+        }
+        const ch =
+          message.mentions.channels.first() ||
+          (await resolveChannel(message.guild, args[1])) ||
+          message.channel;
+        const cfg = ensureLevels(loadGuild(message.guild.id));
+        if (!cfg.levels.blacklistChannels.includes(ch.id)) {
+          cfg.levels.blacklistChannels.push(ch.id);
+          saveGuild(message.guild.id, cfg);
+        }
+        return message.reply({
+          embeds: [successEmbed(message.guild.id, 'Leveling', `${ch} ignored for XP.`)],
+        });
+      }
+      if (sub === 'unblacklist' || sub === 'unignore') {
+        if (!memberHasAdmin(message.member)) {
+          return message.reply({ embeds: [errorEmbed(message.guild.id, 'Denied', 'Admin required.')] });
+        }
+        const ch =
+          message.mentions.channels.first() ||
+          (await resolveChannel(message.guild, args[1])) ||
+          message.channel;
+        const cfg = ensureLevels(loadGuild(message.guild.id));
+        cfg.levels.blacklistChannels = cfg.levels.blacklistChannels.filter((id) => id !== ch.id);
+        saveGuild(message.guild.id, cfg);
+        return message.reply({
+          embeds: [successEmbed(message.guild.id, 'Leveling', `${ch} earns XP again.`)],
+        });
+      }
+      if (sub === 'setxp' || sub === 'set') {
+        if (!memberHasAdmin(message.member)) {
+          return message.reply({ embeds: [errorEmbed(message.guild.id, 'Denied', 'Admin required.')] });
+        }
+        const member =
+          message.mentions.members.first() || (await resolveMember(message.guild, args[1]));
+        const amount = parseInt(args[2] ?? args[1], 10);
+        if (!member || Number.isNaN(amount) || amount < 0) {
+          return message.reply({
+            embeds: [errorEmbed(message.guild.id, 'Leveling', 'Usage: `levels setxp @user <amount>`')],
+          });
+        }
+        const { setUserXp } = require('../features/levels');
+        const stats = setUserXp(message.guild.id, member.id, amount);
+        return message.reply({
+          embeds: [
+            successEmbed(
+              message.guild.id,
+              'XP Set',
+              `${member} → **${stats.totalXp}** XP (level **${stats.level}**)`
+            ),
+          ],
+        });
+      }
+      if (sub === 'reset') {
+        if (!memberHasAdmin(message.member)) {
+          return message.reply({ embeds: [errorEmbed(message.guild.id, 'Denied', 'Admin required.')] });
+        }
+        const member =
+          message.mentions.members.first() || (await resolveMember(message.guild, args[1]));
+        if (!member) {
+          return message.reply({
+            embeds: [errorEmbed(message.guild.id, 'Leveling', 'Usage: `levels reset @user`')],
+          });
+        }
+        const { setUserXp } = require('../features/levels');
+        setUserXp(message.guild.id, member.id, 0);
+        return message.reply({
+          embeds: [successEmbed(message.guild.id, 'XP Reset', `Cleared XP for ${member}.`)],
         });
       }
       const top = leaderboard(message.guild.id, 10);
@@ -762,7 +943,10 @@ const extraCommands = {
               errorEmbed(
                 message.guild.id,
                 'Custom Commands',
-                `Tell me the name and what the bot should say.\n\nExample:\n\`${prefix}cc add hello Hi everyone!\``
+                `Tell me the name and what the bot should say.\n\n` +
+                  `Example:\n\`${prefix}cc add hello Hi {user}!\`\n` +
+                  `Embed:\n\`${prefix}cc add rules embed: Rules | Be nice | https://...\`\n` +
+                  `Vars: \`{user}\` \`{server}\` \`{channel}\` \`{avatar}\` \`{nickname}\` \`{membercount}\``
               ),
             ],
           });
@@ -796,10 +980,692 @@ const extraCommands = {
             description: list.length
               ? `**Your commands**\n${list.map((c) => `• \`${prefix}${c}\``).join('\n')}\n\n` +
                 `Add: \`${prefix}cc add name message\`\n` +
+                `Embed: \`${prefix}cc add name embed: Title | Desc | [image]\`\n` +
                 `Remove: \`${prefix}cc remove name\``
-              : `You have none yet.\n\nAdd one like this:\n\`${prefix}cc add hello Hi everyone!\``,
+              : `You have none yet.\n\nAdd one like this:\n\`${prefix}cc add hello Hi {user}!\``,
           }),
         ],
+      });
+    },
+  },
+
+  antiraid: {
+    description: 'Anti-raid join flood protection',
+    mod: true,
+    async execute(message, args) {
+      if (!memberHasAdmin(message.member)) {
+        return message.reply({ embeds: [errorEmbed(message.guild.id, 'Denied', 'Admin required.')] });
+      }
+      const {
+        ensureRaid,
+        setRaidEnabled,
+        unlockRaid,
+      } = require('../features/antiraid');
+      const cfg = loadGuild(message.guild.id);
+      const raid = ensureRaid(cfg);
+      const sub = (args[0] || '').toLowerCase();
+      const prefix = require('../utils/store').getGuildPrefix(message.guild.id);
+
+      if (sub === 'on' || sub === 'off') {
+        await setRaidEnabled(message.guild.id, sub === 'on');
+        return message.reply({
+          embeds: [successEmbed(message.guild.id, 'Anti-Raid', `Protection is **${sub.toUpperCase()}**.`)],
+        });
+      }
+      if (sub === 'unlock') {
+        await unlockRaid(message.guild);
+        return message.reply({
+          embeds: [successEmbed(message.guild.id, 'Anti-Raid', 'Lockdown lifted. Channels unlocked.')],
+        });
+      }
+      if (sub === 'joins' || sub === 'limit') {
+        const n = parseInt(args[1], 10);
+        if (!n || n < 2) {
+          return message.reply({
+            embeds: [
+              errorEmbed(
+                message.guild.id,
+                'Anti-Raid',
+                `Current limit: **${raid.joinsPerMinute}** joins / 60s\nUsage: \`antiraid joins <number>\``
+              ),
+            ],
+          });
+        }
+        raid.joinsPerMinute = Math.min(50, n);
+        saveGuild(message.guild.id, cfg);
+        return message.reply({
+          embeds: [
+            successEmbed(message.guild.id, 'Anti-Raid', `Trigger at **${raid.joinsPerMinute}** joins in 60 seconds.`),
+          ],
+        });
+      }
+      if (sub === 'action') {
+        const a = (args[1] || '').toLowerCase();
+        if (!['lock', 'kick', 'none'].includes(a)) {
+          return message.reply({
+            embeds: [
+              errorEmbed(message.guild.id, 'Anti-Raid', 'Usage: `antiraid action lock|kick|none`'),
+            ],
+          });
+        }
+        raid.action = a;
+        saveGuild(message.guild.id, cfg);
+        return message.reply({
+          embeds: [successEmbed(message.guild.id, 'Anti-Raid', `Action set to **${a}**.`)],
+        });
+      }
+      if (sub === 'exempt') {
+        const role = message.mentions.roles.first();
+        if (!role) {
+          return message.reply({
+            embeds: [errorEmbed(message.guild.id, 'Anti-Raid', 'Usage: `antiraid exempt @Role`')],
+          });
+        }
+        if (!raid.exemptRoleIds.includes(role.id)) raid.exemptRoleIds.push(role.id);
+        saveGuild(message.guild.id, cfg);
+        return message.reply({
+          embeds: [successEmbed(message.guild.id, 'Anti-Raid', `${role} joins are exempt.`)],
+        });
+      }
+      if (sub === 'unexempt') {
+        const role = message.mentions.roles.first();
+        if (!role) {
+          return message.reply({
+            embeds: [errorEmbed(message.guild.id, 'Anti-Raid', 'Usage: `antiraid unexempt @Role`')],
+          });
+        }
+        raid.exemptRoleIds = raid.exemptRoleIds.filter((id) => id !== role.id);
+        saveGuild(message.guild.id, cfg);
+        return message.reply({
+          embeds: [successEmbed(message.guild.id, 'Anti-Raid', `${role} no longer exempt.`)],
+        });
+      }
+
+      return message.reply({
+        embeds: [
+          baseEmbed(message.guild.id, {
+            title: 'Anti-Raid',
+            description:
+              `Status: **${raid.enabled ? 'ON' : 'OFF'}**\n` +
+              `Lockdown: **${raid.lockdown ? 'ACTIVE' : 'off'}**\n` +
+              `Joins/min: **${raid.joinsPerMinute}**\n` +
+              `Action: **${raid.action}**\n` +
+              `Exempt roles: ${(raid.exemptRoleIds || []).map((id) => `<@&${id}>`).join(' ') || 'none'}\n\n` +
+              `\`${prefix}antiraid on|off\`\n` +
+              `\`${prefix}antiraid joins <n>\`\n` +
+              `\`${prefix}antiraid action lock|kick|none\`\n` +
+              `\`${prefix}antiraid exempt|unexempt @Role\`\n` +
+              `\`${prefix}antiraid unlock\``,
+          }),
+        ],
+      });
+    },
+  },
+
+  suggest: {
+    description: 'Post a suggestion or set up the board',
+    async execute(message, args) {
+      const { ensureSuggestions, postSuggestion } = require('../features/suggestions');
+      const sub = (args[0] || '').toLowerCase();
+      const prefix = require('../utils/store').getGuildPrefix(message.guild.id);
+
+      if (sub === 'setup' || sub === 'channel') {
+        if (!memberHasAdmin(message.member)) {
+          return message.reply({ embeds: [errorEmbed(message.guild.id, 'Denied', 'Admin required.')] });
+        }
+        const ch =
+          message.mentions.channels.first() ||
+          (await resolveChannel(message.guild, args[1])) ||
+          message.channel;
+        const cfg = loadGuild(message.guild.id);
+        const s = ensureSuggestions(cfg);
+        s.enabled = true;
+        s.channelId = ch.id;
+        saveGuild(message.guild.id, cfg);
+        return message.reply({
+          embeds: [
+            successEmbed(
+              message.guild.id,
+              'Suggestions',
+              `Board enabled in ${ch}.\nMembers: \`${prefix}suggest your idea here\``
+            ),
+          ],
+        });
+      }
+      if (sub === 'off') {
+        if (!memberHasAdmin(message.member)) {
+          return message.reply({ embeds: [errorEmbed(message.guild.id, 'Denied', 'Admin required.')] });
+        }
+        const cfg = loadGuild(message.guild.id);
+        const s = ensureSuggestions(cfg);
+        s.enabled = false;
+        saveGuild(message.guild.id, cfg);
+        return message.reply({
+          embeds: [successEmbed(message.guild.id, 'Suggestions', 'Suggestions disabled.')],
+        });
+      }
+
+      const text = args.join(' ').trim();
+      if (!text) {
+        return message.reply({
+          embeds: [
+            baseEmbed(message.guild.id, {
+              title: 'Suggestions',
+              description:
+                `\`${prefix}suggest <idea>\` — post an idea\n` +
+                `\`${prefix}suggest setup #channel\` — enable board (admin)\n` +
+                `\`${prefix}suggest off\` — disable`,
+            }),
+          ],
+        });
+      }
+      try {
+        const { id } = await postSuggestion(message.guild, message.author, text);
+        return message.reply({
+          embeds: [successEmbed(message.guild.id, 'Suggestion', `Posted as **#${id}**.`)],
+        });
+      } catch (err) {
+        return message.reply({
+          embeds: [errorEmbed(message.guild.id, 'Suggestions', err.message || 'Failed to post.')],
+        });
+      }
+    },
+  },
+
+  schedule: {
+    description: 'Repeating channel announcements',
+    mod: true,
+    async execute(message, args) {
+      if (!memberHasAdmin(message.member)) {
+        return message.reply({ embeds: [errorEmbed(message.guild.id, 'Denied', 'Admin required.')] });
+      }
+      const {
+        parseEvery,
+        addSchedule,
+        removeSchedule,
+        listSchedules,
+        armSchedule,
+      } = require('../features/schedule');
+      const prefix = require('../utils/store').getGuildPrefix(message.guild.id);
+      const sub = (args[0] || 'list').toLowerCase();
+
+      if (sub === 'add') {
+        const everyRaw = args[1];
+        const everyMs = parseEvery(everyRaw);
+        if (!everyMs) {
+          return message.reply({
+            embeds: [
+              errorEmbed(
+                message.guild.id,
+                'Schedule',
+                'Usage: `schedule add 1h [#channel] Title | message`\nInterval: `30m` `1h` `1d`'
+              ),
+            ],
+          });
+        }
+        let rest = args.slice(2);
+        let channel =
+          message.mentions.channels.first() || (await resolveChannel(message.guild, rest[0]));
+        if (channel) {
+          rest = rest.slice(1).filter((a) => !a.includes(channel.id));
+        } else {
+          channel = message.channel;
+        }
+        const joined = rest.join(' ');
+        const parts = joined.split('|').map((p) => p.trim());
+        const title = parts[0] || 'Announcement';
+        const body = parts.slice(1).join('|').trim() || parts[0];
+        if (!body) {
+          return message.reply({
+            embeds: [errorEmbed(message.guild.id, 'Schedule', 'Provide a message after `|`.')],
+          });
+        }
+        const job = addSchedule(message.guild.id, {
+          channelId: channel.id,
+          everyMs,
+          title,
+          message: body,
+        });
+        armSchedule(message.client, message.guild.id, job);
+        return message.reply({
+          embeds: [
+            successEmbed(
+              message.guild.id,
+              'Schedule',
+              `Job **${job.id}** → ${channel} every **${everyRaw}**.\nFirst post <t:${Math.floor(job.nextAt / 1000)}:R>`
+            ),
+          ],
+        });
+      }
+      if (sub === 'remove' || sub === 'delete') {
+        const id = args[1];
+        if (!id || !removeSchedule(message.guild.id, id)) {
+          return message.reply({
+            embeds: [errorEmbed(message.guild.id, 'Schedule', 'Usage: `schedule remove <id>`')],
+          });
+        }
+        return message.reply({
+          embeds: [successEmbed(message.guild.id, 'Schedule', `Removed job **${id}**.`)],
+        });
+      }
+
+      const jobs = listSchedules(message.guild.id);
+      const body = jobs.length
+        ? jobs
+            .map(
+              (j) =>
+                `→ **${j.id}** <#${j.channelId}> every ${Math.round((j.everyMs || 0) / 60000)}m — ${j.title || 'Announcement'}`
+            )
+            .join('\n')
+        : '_No schedules._';
+      return message.reply({
+        embeds: [
+          baseEmbed(message.guild.id, {
+            title: 'Schedules',
+            description:
+              body +
+              `\n\n\`${prefix}schedule add 1h #channel Title | message\`\n\`${prefix}schedule remove <id>\``,
+          }),
+        ],
+      });
+    },
+  },
+
+  temprole: {
+    description: 'Give a role that expires automatically',
+    mod: true,
+    async execute(message, args) {
+      if (!memberHasMod(message.member)) {
+        return message.reply({ embeds: [errorEmbed(message.guild.id, 'Denied', 'Mod required.')] });
+      }
+      const { grantTempRole } = require('../features/temproles');
+      const prefix = require('../utils/store').getGuildPrefix(message.guild.id);
+      const member =
+        message.mentions.members.first() || (await resolveMember(message.guild, args[0]));
+      const role = message.mentions.roles.first();
+      const durationRaw = args.find((a) => /^\d+[smhd]?$/i.test(a) && !a.startsWith('<@'));
+      if (!member || !role || !durationRaw) {
+        return message.reply({
+          embeds: [
+            errorEmbed(
+              message.guild.id,
+              'Temp Role',
+              `Usage: \`${prefix}temprole @user @Role 1h\`\nDuration: \`30m\` \`2h\` \`1d\``
+            ),
+          ],
+        });
+      }
+      const ms = parseDuration(durationRaw);
+      try {
+        await grantTempRole(message.guild, member, role, ms);
+        return message.reply({
+          embeds: [
+            successEmbed(
+              message.guild.id,
+              'Temp Role',
+              `${role} → ${member} for **${durationRaw}** (ends <t:${Math.floor((Date.now() + ms) / 1000)}:R>).`
+            ),
+          ],
+        });
+      } catch (err) {
+        return message.reply({
+          embeds: [errorEmbed(message.guild.id, 'Temp Role', err.message || 'Could not add role.')],
+        });
+      }
+    },
+  },
+
+  cases: {
+    description: 'View or edit moderation cases',
+    mod: true,
+    async execute(message, args) {
+      if (!memberHasMod(message.member)) {
+        return message.reply({ embeds: [errorEmbed(message.guild.id, 'Denied', 'Mod required.')] });
+      }
+      const { getCasesForUser, getCase, countWarns, updateCase, deleteCase } = require('../features/moderation');
+      const prefix = require('../utils/store').getGuildPrefix(message.guild.id);
+      const sub = (args[0] || '').toLowerCase();
+
+      if (sub === 'note' || sub === 'reason') {
+        const id = args[1];
+        const text = args.slice(2).join(' ');
+        if (!id || !text) {
+          return message.reply({
+            embeds: [
+              errorEmbed(
+                message.guild.id,
+                'Cases',
+                `Usage: \`${prefix}cases note <id> text\` · \`${prefix}cases reason <id> text\``
+              ),
+            ],
+          });
+        }
+        const patch = sub === 'note' ? { note: text } : { reason: text };
+        const row = updateCase(message.guild.id, id, patch);
+        if (!row) {
+          return message.reply({ embeds: [errorEmbed(message.guild.id, 'Cases', `No case #${id}.`)] });
+        }
+        return message.reply({
+          embeds: [successEmbed(message.guild.id, 'Case Updated', `Case #${row.id} ${sub} set.`)],
+        });
+      }
+
+      if (sub === 'delete' || sub === 'del' || sub === 'remove') {
+        const id = args[1];
+        if (!id || !deleteCase(message.guild.id, id)) {
+          return message.reply({
+            embeds: [errorEmbed(message.guild.id, 'Cases', `Usage: \`${prefix}cases delete <id>\``)],
+          });
+        }
+        return message.reply({
+          embeds: [successEmbed(message.guild.id, 'Case Deleted', `Removed case #${id}.`)],
+        });
+      }
+
+      if (args[0] && /^\d+$/.test(args[0]) && !args[0].startsWith('<@')) {
+        const row = getCase(message.guild.id, args[0]);
+        if (!row) {
+          return message.reply({
+            embeds: [errorEmbed(message.guild.id, 'Cases', `No case #${args[0]}.`)],
+          });
+        }
+        return message.reply({
+          embeds: [
+            baseEmbed(message.guild.id, {
+              title: `Case #${row.id}`,
+              description:
+                `→ **Type:** ${row.type}\n` +
+                `→ **User:** <@${row.userId}>\n` +
+                `→ **Mod:** <@${row.modId}>\n` +
+                `→ **Reason:** ${row.reason}\n` +
+                (row.note ? `→ **Note:** ${row.note}\n` : '') +
+                `→ **When:** <t:${Math.floor(row.at / 1000)}:R>`,
+            }),
+          ],
+        });
+      }
+      const target =
+        message.mentions.members.first() ||
+        (await resolveMember(message.guild, args[0])) ||
+        message.member;
+      const list = getCasesForUser(message.guild.id, target.id).slice(-15).reverse();
+      const warns = countWarns(message.guild.id, target.id);
+      const body = list.length
+        ? list
+            .map(
+              (c) =>
+                `→ **#${c.id}** \`${c.type}\` <t:${Math.floor(c.at / 1000)}:R> — ${c.reason.slice(0, 80)}`
+            )
+            .join('\n')
+        : '_No cases._';
+      return message.reply({
+        embeds: [
+          baseEmbed(message.guild.id, {
+            title: `Cases · ${target.user.tag}`,
+            description:
+              `Active warns: **${warns}**\n\n${body}\n\n` +
+              `\`${prefix}cases note <id> …\` · \`${prefix}cases reason <id> …\` · \`${prefix}cases delete <id>\``,
+          }),
+        ],
+      });
+    },
+  },
+
+  warnladder: {
+    description: 'Configure auto-punish after warnings',
+    mod: true,
+    async execute(message, args) {
+      if (!memberHasAdmin(message.member)) {
+        return message.reply({ embeds: [errorEmbed(message.guild.id, 'Denied', 'Admin required.')] });
+      }
+      const { ensureMod, setWarnLadder } = require('../features/moderation');
+      const cfg = ensureMod(loadGuild(message.guild.id));
+      const ladder = cfg.moderation.warnLadder;
+      const sub = (args[0] || '').toLowerCase();
+      const prefix = require('../utils/store').getGuildPrefix(message.guild.id);
+
+      if (sub === 'on' || sub === 'off') {
+        setWarnLadder(message.guild.id, { enabled: sub === 'on' });
+        return message.reply({
+          embeds: [successEmbed(message.guild.id, 'Warn Ladder', `Auto-punish **${sub.toUpperCase()}**.`)],
+        });
+      }
+      if (sub === 'mute' || sub === 'kick' || sub === 'ban') {
+        const n = parseInt(args[1], 10);
+        if (!n || n < 0) {
+          return message.reply({
+            embeds: [
+              errorEmbed(
+                message.guild.id,
+                'Warn Ladder',
+                `Usage: \`${prefix}warnladder ${sub} <count>\` (0 = disabled)`
+              ),
+            ],
+          });
+        }
+        const key = `${sub}At`;
+        const patch = { [key]: n };
+        if (sub === 'mute' && args[2]) patch.muteDuration = args[2];
+        setWarnLadder(message.guild.id, patch);
+        return message.reply({
+          embeds: [successEmbed(message.guild.id, 'Warn Ladder', `**${sub}** at **${n}** warns.`)],
+        });
+      }
+
+      return message.reply({
+        embeds: [
+          baseEmbed(message.guild.id, {
+            title: 'Warn Ladder',
+            description:
+              `Status: **${ladder.enabled ? 'ON' : 'OFF'}**\n` +
+              `Mute at: **${ladder.muteAt || 0}** (${ladder.muteDuration || '1h'})\n` +
+              `Kick at: **${ladder.kickAt || 0}**\n` +
+              `Ban at: **${ladder.banAt || 0}** (0 = off)\n\n` +
+              `\`${prefix}warnladder on|off\`\n` +
+              `\`${prefix}warnladder mute 3 1h\`\n` +
+              `\`${prefix}warnladder kick 5\`\n` +
+              `\`${prefix}warnladder ban 7\``,
+          }),
+        ],
+      });
+    },
+  },
+
+  snipe: {
+    description: 'Show the last deleted message in this channel',
+    mod: true,
+    async execute(message, args) {
+      if (!memberHasMod(message.member)) {
+        return message.reply({ embeds: [errorEmbed(message.guild.id, 'Denied', 'Mod required.')] });
+      }
+      const { getSnipe } = require('../features/snipe');
+      const idx = Math.max(0, (parseInt(args[0], 10) || 1) - 1);
+      const hit = getSnipe(message.channel.id, idx);
+      if (!hit) {
+        return message.reply({
+          embeds: [errorEmbed(message.guild.id, 'Snipe', 'Nothing to snipe here.')],
+        });
+      }
+      const embed = baseEmbed(message.guild.id, {
+        title: 'Snipe',
+        description: hit.content || '_No text_',
+        footer: `${hit.authorTag} · deleted`,
+        thumbnail: hit.avatar || undefined,
+      });
+      if (hit.attachments?.length) {
+        embed.addFields({ name: 'Attachments', value: hit.attachments.join('\n').slice(0, 1000) });
+      }
+      return message.reply({ embeds: [embed] });
+    },
+  },
+
+  editsnipe: {
+    description: 'Show the last edited message in this channel',
+    mod: true,
+    async execute(message, args) {
+      if (!memberHasMod(message.member)) {
+        return message.reply({ embeds: [errorEmbed(message.guild.id, 'Denied', 'Mod required.')] });
+      }
+      const { getEditSnipe } = require('../features/snipe');
+      const idx = Math.max(0, (parseInt(args[0], 10) || 1) - 1);
+      const hit = getEditSnipe(message.channel.id, idx);
+      if (!hit) {
+        return message.reply({
+          embeds: [errorEmbed(message.guild.id, 'Edit Snipe', 'Nothing to snipe here.')],
+        });
+      }
+      return message.reply({
+        embeds: [
+          baseEmbed(message.guild.id, {
+            title: 'Edit Snipe',
+            description: `**Before:**\n${hit.before}\n\n**After:**\n${hit.after}`,
+            footer: `${hit.authorTag} · edited`,
+            thumbnail: hit.avatar || undefined,
+          }),
+        ],
+      });
+    },
+  },
+
+  report: {
+    description: 'Report a member to staff',
+    async execute(message, args) {
+      const { submitReport, setReportChannel, ensureReports } = require('../features/report');
+      const sub = (args[0] || '').toLowerCase();
+      const prefix = require('../utils/store').getGuildPrefix(message.guild.id);
+
+      if (sub === 'channel') {
+        if (!memberHasAdmin(message.member)) {
+          return message.reply({ embeds: [errorEmbed(message.guild.id, 'Denied', 'Admin required.')] });
+        }
+        const ch =
+          message.mentions.channels.first() ||
+          (await resolveChannel(message.guild, args[1])) ||
+          message.channel;
+        setReportChannel(message.guild.id, ch.id);
+        return message.reply({
+          embeds: [successEmbed(message.guild.id, 'Reports', `Reports go to ${ch}.`)],
+        });
+      }
+      if (sub === 'off' || sub === 'on') {
+        if (!memberHasAdmin(message.member)) {
+          return message.reply({ embeds: [errorEmbed(message.guild.id, 'Denied', 'Admin required.')] });
+        }
+        const cfg = loadGuild(message.guild.id);
+        const r = ensureReports(cfg);
+        r.enabled = sub === 'on';
+        saveGuild(message.guild.id, cfg);
+        return message.reply({
+          embeds: [successEmbed(message.guild.id, 'Reports', `Reports **${sub.toUpperCase()}**.`)],
+        });
+      }
+
+      const target =
+        message.mentions.members.first() || (await resolveMember(message.guild, args[0]));
+      const reason = args.slice(1).join(' ').replace(/<@!?\d+>/g, '').trim();
+      if (!target || !reason) {
+        return message.reply({
+          embeds: [
+            errorEmbed(
+              message.guild.id,
+              'Report',
+              `Usage: \`${prefix}report @user reason\`\nAdmin: \`${prefix}report channel #mods\``
+            ),
+          ],
+        });
+      }
+      if (target.id === message.author.id) {
+        return message.reply({
+          embeds: [errorEmbed(message.guild.id, 'Report', 'You cannot report yourself.')],
+        });
+      }
+      try {
+        await submitReport(message.guild, {
+          reporter: message.author,
+          target,
+          reason,
+          evidenceUrl: message.attachments.first()?.url || null,
+        });
+        return message.reply({
+          embeds: [successEmbed(message.guild.id, 'Report', 'Staff have been notified.')],
+        });
+      } catch (err) {
+        return message.reply({
+          embeds: [errorEmbed(message.guild.id, 'Report', err.message || 'Failed.')],
+        });
+      }
+    },
+  },
+
+  lockdown: {
+    description: 'Manually lock or unlock the server (anti-raid style)',
+    mod: true,
+    async execute(message, args) {
+      if (!memberHasAdmin(message.member)) {
+        return message.reply({ embeds: [errorEmbed(message.guild.id, 'Denied', 'Admin required.')] });
+      }
+      const { unlockRaid, applyLockdown, ensureRaid } = require('../features/antiraid');
+      const sub = (args[0] || '').toLowerCase();
+      if (sub === 'off' || sub === 'unlock') {
+        await unlockRaid(message.guild);
+        return message.reply({
+          embeds: [successEmbed(message.guild.id, 'Lockdown', 'Server unlocked.')],
+        });
+      }
+      if (sub === 'on' || sub === 'lock' || !sub) {
+        const cfg = loadGuild(message.guild.id);
+        const raid = ensureRaid(cfg);
+        raid.lockdown = true;
+        raid.lockedAt = Date.now();
+        saveGuild(message.guild.id, cfg);
+        await applyLockdown(message.guild, true);
+        return message.reply({
+          embeds: [
+            successEmbed(
+              message.guild.id,
+              'Lockdown',
+              'Server locked (@everyone cannot send in text channels).\nUnlock: `lockdown off`'
+            ),
+          ],
+        });
+      }
+      return message.reply({
+        embeds: [errorEmbed(message.guild.id, 'Lockdown', 'Usage: `lockdown on|off`')],
+      });
+    },
+  },
+
+  unban: {
+    description: 'Unban a user by ID',
+    mod: true,
+    async execute(message, args) {
+      if (!message.member.permissions.has(PermissionFlagsBits.BanMembers)) {
+        return message.reply({ embeds: [errorEmbed(message.guild.id, 'Denied', 'Ban permission required.')] });
+      }
+      const id = (args[0] || '').replace(/[<@!>]/g, '');
+      if (!/^\d{17,20}$/.test(id)) {
+        return message.reply({
+          embeds: [errorEmbed(message.guild.id, 'Unban', 'Usage: `unban <userId> [reason]`')],
+        });
+      }
+      const reason = args.slice(1).join(' ') || 'Unbanned';
+      await message.guild.members.unban(id, `${message.author.tag}: ${reason}`);
+      const { addCase, sendModLog } = require('../features/moderation');
+      const row = addCase(message.guild.id, {
+        type: 'unban',
+        userId: id,
+        modId: message.author.id,
+        reason,
+      });
+      await sendModLog(message.guild, {
+        action: 'Unban',
+        userId: id,
+        modId: message.author.id,
+        reason,
+        caseId: row.id,
+      });
+      return message.reply({
+        embeds: [successEmbed(message.guild.id, 'Unbanned', `→ \`${id}\` · Case #${row.id}`)],
       });
     },
   },
@@ -808,5 +1674,10 @@ const extraCommands = {
 // Aliases
 extraCommands.rr = extraCommands.reactionrole;
 extraCommands.ar = extraCommands.autorespond;
+extraCommands.suggestion = extraCommands.suggest;
+extraCommands.suggestions = extraCommands.suggest;
+extraCommands.temproles = extraCommands.temprole;
+extraCommands.esnipe = extraCommands.editsnipe;
+extraCommands.case = extraCommands.cases;
 
 module.exports = { extraCommands };

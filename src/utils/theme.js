@@ -4,6 +4,8 @@ const { ButtonStyle } = require('discord.js');
 
 /**
  * 10 interface color templates.
+ * Discord buttons only support 4 styles — map each theme to the closest:
+ *   Primary = blurple/blue · Secondary = grey · Success = green · Danger = red
  * Drop preview images into assets/interfaces/ as:
  *   red.png, black.png, white.png, pink.png, blue.png,
  *   purple.png, green.png, orange.png, cyan.png, gold.png
@@ -15,23 +17,23 @@ const INTERFACE_TEMPLATES = [
     color: 0xe74c3c,
     accent: '#E74C3C',
     emoji: '🔴',
-    button: ButtonStyle.Danger,
+    button: ButtonStyle.Danger, // red
   },
   {
     id: 'black',
     label: 'Black',
     color: 0x2c2f33,
     accent: '#2C2F33',
-    emoji: '⬛',
-    button: ButtonStyle.Secondary,
+    emoji: '🖤',
+    button: ButtonStyle.Secondary, // grey
   },
   {
     id: 'white',
     label: 'White',
     color: 0xeceff4,
     accent: '#ECEFF4',
-    emoji: '⬜',
-    button: ButtonStyle.Secondary,
+    emoji: '🤍',
+    button: ButtonStyle.Secondary, // grey
   },
   {
     id: 'pink',
@@ -39,7 +41,7 @@ const INTERFACE_TEMPLATES = [
     color: 0xff6b9d,
     accent: '#FF6B9D',
     emoji: '💗',
-    button: ButtonStyle.Primary,
+    button: ButtonStyle.Primary, // blurple (closest)
   },
   {
     id: 'blue',
@@ -47,7 +49,7 @@ const INTERFACE_TEMPLATES = [
     color: 0x57c7ff,
     accent: '#57C7FF',
     emoji: '💙',
-    button: ButtonStyle.Primary,
+    button: ButtonStyle.Primary, // blurple/blue
   },
   {
     id: 'purple',
@@ -55,7 +57,7 @@ const INTERFACE_TEMPLATES = [
     color: 0x9b59b6,
     accent: '#9B59B6',
     emoji: '💜',
-    button: ButtonStyle.Primary,
+    button: ButtonStyle.Primary, // blurple (closest)
   },
   {
     id: 'green',
@@ -63,7 +65,7 @@ const INTERFACE_TEMPLATES = [
     color: 0x2ecc71,
     accent: '#2ECC71',
     emoji: '💚',
-    button: ButtonStyle.Success,
+    button: ButtonStyle.Success, // green
   },
   {
     id: 'orange',
@@ -71,7 +73,7 @@ const INTERFACE_TEMPLATES = [
     color: 0xe67e22,
     accent: '#E67E22',
     emoji: '🧡',
-    button: ButtonStyle.Danger,
+    button: ButtonStyle.Danger, // red-orange closest
   },
   {
     id: 'cyan',
@@ -79,7 +81,8 @@ const INTERFACE_TEMPLATES = [
     color: 0x1abc9c,
     accent: '#1ABC9C',
     emoji: '🩵',
-    button: ButtonStyle.Success,
+    // Was Success (green) — wrong. Primary is the blue-family match.
+    button: ButtonStyle.Primary,
   },
   {
     id: 'gold',
@@ -87,7 +90,7 @@ const INTERFACE_TEMPLATES = [
     color: 0xf1c40f,
     accent: '#F1C40F',
     emoji: '💛',
-    button: ButtonStyle.Primary,
+    button: ButtonStyle.Primary, // blurple (no yellow button exists)
   },
 ];
 

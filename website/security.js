@@ -2,10 +2,10 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-const ROOT = path.join(__dirname, '..');
-const DATA = path.join(ROOT, 'data');
-const SESSIONS_PATH = path.join(DATA, 'admin-sessions.json');
-const CSRF_PATH = path.join(DATA, 'csrf-tokens.json');
+const { dataDir, dataFile } = require('../src/utils/data-paths');
+const DATA = dataDir();
+const SESSIONS_PATH = dataFile('admin-sessions.json');
+const CSRF_PATH = dataFile('csrf-tokens.json');
 
 const MAX_BODY = 32 * 1024; // 32KB
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8h
@@ -13,7 +13,7 @@ const CSRF_TTL_MS = 2 * 60 * 60 * 1000;
 const COOKIE_NAME = 'ougi_admin_sid';
 const COOKIE_BUYER_TOKEN = 'ougi_buyer_tok';
 const COOKIE_BUYER_THREAD = 'ougi_buyer_tid';
-const AUDIT_PATH = path.join(DATA, 'security-audit.log');
+const AUDIT_PATH = dataFile('security-audit.log');
 const RATE = new Map(); // key -> { count, reset }
 
 const COMMON_PASSWORDS = new Set(
@@ -293,7 +293,12 @@ function createAdminSession(meta = {}) {
     createdAt: Date.now(),
     expiresAt: Date.now() + SESSION_TTL_MS,
     lastSeenAt: Date.now(),
-    staffName: sanitizePlainText(meta.staffName || 'Staff', 32),
+    staffName: sanitizePlainText(meta.staffName || meta.name || 'Staff', 32),
+    staffId: meta.staffId ? sanitizePlainText(meta.staffId, 64) : null,
+    staffEmail: meta.staffEmail
+      ? sanitizePlainText(meta.staffEmail, 120).toLowerCase()
+      : null,
+    role: meta.role === 'admin' ? 'admin' : 'staff',
     ip: meta.ip || null,
   };
   saveJson(SESSIONS_PATH, store);

@@ -11,10 +11,10 @@ const {
   validatePasswordStrength,
 } = require('./security');
 
-const ROOT = path.join(__dirname, '..');
-const CHAT_PATH = path.join(ROOT, 'data', 'chats.json');
-const SECRET_PATH = path.join(ROOT, 'data', 'chat-admin-secret.txt');
-const HASH_PATH = path.join(ROOT, 'data', 'chat-admin-hash.txt');
+const { dataFile } = require('../src/utils/data-paths');
+const CHAT_PATH = dataFile('chats.json');
+const SECRET_PATH = dataFile('chat-admin-secret.txt');
+const HASH_PATH = dataFile('chat-admin-hash.txt');
 const BCRYPT_ROUNDS = 12;
 const RETENTION_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
 
@@ -46,7 +46,7 @@ function migrateAdminPassword() {
       });
     }
   }
-  const bootstrap = path.join(ROOT, 'data', 'ADMIN_PASSWORD_ONCE.txt');
+  const bootstrap = dataFile('ADMIN_PASSWORD_ONCE.txt');
   if (!process.env.OUGI_CHAT_SECRET) {
     fs.writeFileSync(
       bootstrap,

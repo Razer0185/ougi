@@ -157,13 +157,89 @@ function isPanelCategoryName(name) {
   );
 }
 
-async function createPanel(guild, client) {
+function isPanelChannelName(name) {
+  const n = String(name || '').toLowerCase().trim();
+  return (
+    n === PANEL_CHANNEL_NAME.toLowerCase() ||
+    n === '✨・ougi' ||
+    n === '✨｜ougi' ||
+    n === '✨-ougi' ||
+    /^✨[・｜|\-]?ougi$/i.test(name) ||
+    /^✨[・｜|\-]?(example|nexus)$/i.test(name) ||
+    n === 'ougi' ||
+    n === 'example' ||
+    n.includes('control panel') ||
+    n.includes('control-panel')
+  );
+}
+
+/** Keep exactly one Ougi panel category + channel; delete extras. */
+async function dedupePanelChannels(guild, preferredChannelId = null) {
+  const categories = [...guild.channels.cache.values()].filter(
+    (c) => c.type === ChannelType.GuildCategory && isPanelCategoryName(c.name)
+  );
+  const panelChannels = [...guild.channels.cache.values()].filter(
+    (c) => c.type === ChannelType.GuildText && isPanelChannelName(c.name)
+  );
+
+  // Prefer stored channel if it still exists
+  let keep =
+    (preferredChannelId && panelChannels.find((c) => c.id === preferredChannelId)) ||
+    (preferredChannelId && guild.channels.cache.get(preferredChannelId)) ||
+    null;
+  if (keep && keep.type !== ChannelType.GuildText) keep = null;
+  if (!keep) {
+    keep = panelChannels.sort((a, b) => a.createdTimestamp - b.createdTimestamp)[0] || null;
+  }
+
+  for (const ch of panelChannels) {
+    if (keep && ch.id === keep.id) continue;
+    await ch.delete('Ougi: only one control panel channel allowed').catch(() => {});
+  }
+
+  // Prefer category that owns the kept channel, else oldest panel category
+  let keepCat =
+    (keep?.parentId && categories.find((c) => c.id === keep.parentId)) ||
+    categories.sort((a, b) => a.createdTimestamp - b.createdTimestamp)[0] ||
+    null;
+
+  for (const cat of categories) {
+    if (keepCat && cat.id === keepCat.id) continue;
+    // Move any leftover children out is unnecessary — delete empty extras only if empty
+    const children = guild.channels.cache.filter((c) => c.parentId === cat.id);
+    if (children.size === 0) {
+      await cat.delete('Ougi: duplicate panel category removed').catch(() => {});
+    } else if (!keepCat) {
+      keepCat = cat;
+    } else {
+      // Move remaining children under keepCat then delete
+      for (const [, child] of children) {
+        await child.setParent(keepCat.id, { lockPermissions: false }).catch(() => {});
+      }
+      await cat.delete('Ougi: duplicate panel category removed').catch(() => {});
+    }
+  }
+
+  if (keepCat && keepCat.name !== PANEL_CATEGORY_NAME) {
+    await keepCat.setName(PANEL_CATEGORY_NAME).catch(() => {});
+  }
+  if (keep && keep.name !== PANEL_CHANNEL_NAME) {
+    await keep.setName(PANEL_CHANNEL_NAME).catch(() => {});
+  }
+  if (keep && keepCat && keep.parentId !== keepCat.id) {
+    await keep.setParent(keepCat.id, { lockPermissions: false }).catch(() => {});
+  }
+
+  return { channel: keep || null, category: keepCat || null };
+}
+
+async function createPanel(guild, client, opts = {}) {
   const cfg = loadGuild(guild.id);
-  let channel = cfg.panelChannelId && guild.channels.cache.get(cfg.panelChannelId);
+  const deduped = await dedupePanelChannels(guild, cfg.panelChannelId);
+  let channel = deduped.channel;
+  let category = deduped.category;
+
   if (!channel) {
-    let category = guild.channels.cache.find(
-      (c) => c.type === ChannelType.GuildCategory && isPanelCategoryName(c.name)
-    );
     if (!category) {
       category = await guild.channels.create({
         name: PANEL_CATEGORY_NAME,
@@ -206,24 +282,51 @@ async function createPanel(guild, client) {
     await lockPanelVisibility(guild, channel, channel.parent);
   }
 
-  // Remove old panel message if present to avoid duplicates
+  const panelPayload = {
+    embeds: [panelEmbed(guild.id, client, opts.page || 0)],
+    components: panelComponents(guild.id, opts.page || 0),
+  };
+
+  // Fast path: edit existing panel message (avoids timeouts during setup)
+  if (!opts.forceNew && cfg.panelMessageId) {
+    const existing = await channel.messages.fetch(cfg.panelMessageId).catch(() => null);
+    if (existing) {
+      try {
+        await existing.edit(panelPayload);
+        cfg.panelChannelId = channel.id;
+        saveGuild(guild.id, cfg);
+        if (!opts.skipThemeRoles) {
+          try {
+            const { syncThemeAdminRoles } = require('../features/theme-roles');
+            await syncThemeAdminRoles(guild);
+          } catch (err) {
+            console.error(`Theme roles during panel setup (${guild.id}):`, err.message);
+          }
+        }
+        return channel;
+      } catch (err) {
+        console.error(`Panel edit failed (${guild.id}), recreating:`, err.message);
+        await existing.delete().catch(() => {});
+      }
+    }
+  }
+
   if (cfg.panelMessageId) {
     const old = await channel.messages.fetch(cfg.panelMessageId).catch(() => null);
     if (old) await old.delete().catch(() => {});
   }
 
-  const msg = await channel.send({
-    embeds: [panelEmbed(guild.id, client, 0)],
-    components: panelComponents(guild.id, 0),
-  });
+  const msg = await channel.send(panelPayload);
   cfg.panelChannelId = channel.id;
   cfg.panelMessageId = msg.id;
   saveGuild(guild.id, cfg);
-  try {
-    const { syncThemeAdminRoles } = require('../features/theme-roles');
-    await syncThemeAdminRoles(guild);
-  } catch (err) {
-    console.error(`Theme roles during panel setup (${guild.id}):`, err.message);
+  if (!opts.skipThemeRoles) {
+    try {
+      const { syncThemeAdminRoles } = require('../features/theme-roles');
+      await syncThemeAdminRoles(guild);
+    } catch (err) {
+      console.error(`Theme roles during panel setup (${guild.id}):`, err.message);
+    }
   }
   return channel;
 }
@@ -462,7 +565,11 @@ const commands = {
           embeds: [
             baseEmbed(message.guild.id, {
               title: 'Prefix',
-              description: `Current prefix: \`${getGuildPrefix(message.guild.id)}\`\n\nUsage: \`prefix <symbol>\`\nExamples: \`prefix !\` · \`prefix ?\` · \`prefix .\``,
+              description:
+                `Current prefix: \`${getGuildPrefix(message.guild.id)}\`\n\n` +
+                `Usage: \`prefix <symbol>\` (up to 5 chars)\n` +
+                `Commands also work with symbols like \`. ! ? , ; : - = / \\ \` ' " [ ]\` and more.\n` +
+                `Examples: \`prefix !\` · \`prefix ?\` · \`prefix .\``,
             }),
           ],
         });
@@ -506,15 +613,47 @@ const commands = {
       }
       const { applyThemeAndSyncRoles } = require('../features/theme-roles');
       await applyThemeAndSyncRoles(message.guild, key);
+      // Rebuild panel embed + button colors (message stays otherwise stale)
+      await createPanel(message.guild, message.client, { skipThemeRoles: true }).catch((err) => {
+        console.error('Theme panel refresh failed:', err.message);
+      });
       return message.reply({
         embeds: [
           successEmbed(
             message.guild.id,
             'Theme Updated',
-            `Accent set to **${THEMES[key].label}**\nTheme admin roles updated (★ = active).`
+            `Accent set to **${THEMES[key].label}**\n` +
+              `Panel buttons use Discord’s closest color ` +
+              `(blurple / grey / green / red — Discord only allows those four).\n` +
+              `Bot color role applied. Active theme role is hoisted.`
           ),
         ],
       });
+    },
+  },
+
+  ask: {
+    description: 'Ask Ougi AI a question (you.com)',
+    async execute(message, args) {
+      const { handleAsk } = require('../features/ai');
+      return handleAsk(message, args);
+    },
+  },
+
+  askbuild: {
+    description: 'AI designs and creates custom channels (admin)',
+    mod: true,
+    async execute(message, args) {
+      if (!memberHasAdmin(message.member)) {
+        return message.reply({ embeds: [errorEmbed(message.guild.id, 'Denied', 'Admin required.')] });
+      }
+      if (!message.guild.members.me?.permissions?.has(PermissionFlagsBits.ManageChannels)) {
+        return message.reply({
+          embeds: [errorEmbed(message.guild.id, 'AI Channels', 'I need Manage Channels.')],
+        });
+      }
+      const { handleAskBuild } = require('../features/ai');
+      return handleAskBuild(message, args);
     },
   },
 
@@ -599,7 +738,7 @@ const commands = {
   },
 
   ban: {
-    description: 'Ban a member',
+    description: 'Ban a member (optional message wipe days 0-7)',
     mod: true,
     async execute(message, args) {
       if (!memberHasMod(message.member) || !message.member.permissions.has(PermissionFlagsBits.BanMembers)) {
@@ -607,27 +746,42 @@ const commands = {
       }
       const target = await resolveMember(message.guild, args[0]);
       if (!target) {
-        return message.reply({ embeds: [errorEmbed(message.guild.id, 'Ban', 'Member not found.')] });
+        return message.reply({
+          embeds: [
+            errorEmbed(
+              message.guild.id,
+              'Ban',
+              'Usage: `ban @user [0-7] [reason]` — optional days of messages to delete'
+            ),
+          ],
+        });
       }
-      const reason = args.slice(1).join(' ') || 'No reason provided';
-      await target.ban({ reason: `${message.author.tag}: ${reason}` });
-      const { addCase, sendModLog } = require('../features/moderation');
-      const row = addCase(message.guild.id, {
-        type: 'ban',
-        userId: target.id,
-        modId: message.author.id,
+      let deleteDays = 0;
+      let reasonParts = args.slice(1);
+      if (reasonParts[0] && /^\d+$/.test(reasonParts[0])) {
+        const n = parseInt(reasonParts[0], 10);
+        if (n >= 0 && n <= 7) {
+          deleteDays = n;
+          reasonParts = reasonParts.slice(1);
+        }
+      }
+      const reason = reasonParts.join(' ') || 'No reason provided';
+      const { banMember } = require('../features/moderation');
+      const row = await banMember(message.guild, {
+        target,
+        moderator: message.author,
         reason,
-      });
-      await sendModLog(message.guild, {
-        action: 'Ban',
-        userId: target.id,
-        userTag: target.user.tag,
-        modId: message.author.id,
-        reason,
-        caseId: row.id,
+        deleteDays,
       });
       return message.reply({
-        embeds: [successEmbed(message.guild.id, 'Banned', `→ **${target.user.tag}**\n→ ${reason}`)],
+        embeds: [
+          successEmbed(
+            message.guild.id,
+            'Banned',
+            `→ **${target.user.tag}** · Case #${row.id}\n→ ${reason}` +
+              (deleteDays ? `\n→ Wiped up to **${deleteDays}d** messages` : '')
+          ),
+        ],
       });
     },
   },
@@ -679,14 +833,22 @@ const commands = {
       }
       const duration = parseDuration(args[1]);
       const reason = args.slice(2).join(' ') || args.slice(1).join(' ') || 'No reason provided';
-      try {
-        await target.timeout(duration, `${message.author.tag}: ${reason}`);
-      } catch {
-        const role = await ensureMutedRole(message.guild, store);
-        await target.roles.add(role, reason);
-      }
+      const { muteMember } = require('../features/moderation');
+      const row = await muteMember(message.guild, {
+        target,
+        moderator: message.author,
+        reason,
+        durationMs: duration,
+        store,
+      });
       return message.reply({
-        embeds: [successEmbed(message.guild.id, 'Muted', `→ **${target.user.tag}**\n→ ${reason}`)],
+        embeds: [
+          successEmbed(
+            message.guild.id,
+            'Muted',
+            `→ **${target.user.tag}** · Case #${row.id}\n→ ${reason}`
+          ),
+        ],
       });
     },
   },
@@ -702,13 +864,17 @@ const commands = {
       if (!target) {
         return message.reply({ embeds: [errorEmbed(message.guild.id, 'Unmute', 'Member not found.')] });
       }
-      await target.timeout(null).catch(() => {});
-      const cfg = loadGuild(message.guild.id);
-      if (cfg.mutedRoleId && target.roles.cache.has(cfg.mutedRoleId)) {
-        await target.roles.remove(cfg.mutedRoleId).catch(() => {});
-      }
+      const reason = args.slice(1).join(' ') || 'Unmuted';
+      const { unmuteMember } = require('../features/moderation');
+      const row = await unmuteMember(message.guild, {
+        target,
+        moderator: message.author,
+        reason,
+      });
       return message.reply({
-        embeds: [successEmbed(message.guild.id, 'Unmuted', `→ **${target.user.tag}**`)],
+        embeds: [
+          successEmbed(message.guild.id, 'Unmuted', `→ **${target.user.tag}** · Case #${row.id}`),
+        ],
       });
     },
   },
@@ -1069,6 +1235,27 @@ const commands = {
         saveGuild(message.guild.id, cfg);
         return message.reply({ embeds: [successEmbed(message.guild.id, 'Welcome', 'Welcome messages disabled.')] });
       }
+      if (sub === 'card') {
+        const mode = (args[1] || '').toLowerCase();
+        if (mode === 'on' || mode === 'off') {
+          cfg.welcome.card = mode === 'on';
+          saveGuild(message.guild.id, cfg);
+          return message.reply({
+            embeds: [
+              successEmbed(
+                message.guild.id,
+                'Welcome',
+                `Welcome image cards are **${mode.toUpperCase()}**.`
+              ),
+            ],
+          });
+        }
+        return message.reply({
+          embeds: [
+            errorEmbed(message.guild.id, 'Welcome', 'Usage: `welcome card on|off`'),
+          ],
+        });
+      }
       if (sub === 'on') {
         cfg.welcome.enabled = true;
         const mentioned = message.mentions.channels.first();
@@ -1087,7 +1274,7 @@ const commands = {
             successEmbed(
               message.guild.id,
               'Welcome',
-              `Enabled in <#${cfg.welcome.channelId}>\nMessage: ${cfg.welcome.message}`
+              `Enabled in <#${cfg.welcome.channelId}>\nMessage: ${cfg.welcome.message}\nCards: **${cfg.welcome.card !== false ? 'ON' : 'OFF'}**`
             ),
           ],
         });
@@ -1100,10 +1287,97 @@ const commands = {
               '→ `welcome on [#channel] [message]` — enable\n' +
               '→ Examples: `welcome on #welcome Hello {user}!`\n' +
               '→ `welcome off` — disable\n' +
+              '→ `welcome card on|off` — image cards\n' +
               'Placeholders: `{user}` `{server}` `{count}`',
           }),
         ],
       });
+    },
+  },
+
+  goodbye: {
+    description: 'Configure leave / goodbye messages',
+    mod: true,
+    async execute(message, args) {
+      if (!memberHasAdmin(message.member)) {
+        return message.reply({ embeds: [errorEmbed(message.guild.id, 'Denied', 'Admin required.')] });
+      }
+      const cfg = loadGuild(message.guild.id);
+      const sub = (args[0] || '').toLowerCase();
+      if (sub === 'off') {
+        cfg.goodbye.enabled = false;
+        saveGuild(message.guild.id, cfg);
+        return message.reply({ embeds: [successEmbed(message.guild.id, 'Goodbye', 'Goodbye messages disabled.')] });
+      }
+      if (sub === 'on') {
+        cfg.goodbye.enabled = true;
+        const mentioned = message.mentions.channels.first();
+        let channel = mentioned || null;
+        let msgParts = args.slice(1);
+        if (!channel && args[1]) {
+          channel = await resolveChannel(message.guild, args[1]);
+          if (channel) msgParts = args.slice(2);
+        }
+        cfg.goodbye.channelId = channel?.id || message.channel.id;
+        const msg = msgParts.join(' ').replace(/<#\d+>/g, '').trim();
+        if (msg) cfg.goodbye.message = msg;
+        saveGuild(message.guild.id, cfg);
+        return message.reply({
+          embeds: [
+            successEmbed(
+              message.guild.id,
+              'Goodbye',
+              `Enabled in <#${cfg.goodbye.channelId}>\nMessage: ${cfg.goodbye.message}`
+            ),
+          ],
+        });
+      }
+      return message.reply({
+        embeds: [
+          baseEmbed(message.guild.id, {
+            title: 'Goodbye Setup',
+            description:
+              '→ `goodbye on [#channel] [message]` — enable\n' +
+              '→ `goodbye off` — disable\n' +
+              'Placeholders: `{user}` `{server}` `{count}`',
+          }),
+        ],
+      });
+    },
+  },
+
+  verify: {
+    description: 'Setup member verification button',
+    mod: true,
+    async execute(message, args) {
+      if (!memberHasAdmin(message.member)) {
+        return message.reply({ embeds: [errorEmbed(message.guild.id, 'Denied', 'Admin required.')] });
+      }
+      const cfg = loadGuild(message.guild.id);
+      const sub = (args[0] || '').toLowerCase();
+      if (sub === 'off') {
+        cfg.verify.enabled = false;
+        saveGuild(message.guild.id, cfg);
+        return message.reply({ embeds: [successEmbed(message.guild.id, 'Verify', 'Verification disabled.')] });
+      }
+      try {
+        const { setupVerify } = require('../features/verify');
+        const channel = message.mentions.channels.first() || message.channel;
+        await setupVerify(message.guild, channel);
+        return message.reply({
+          embeds: [
+            successEmbed(
+              message.guild.id,
+              'Verify Ready',
+              `Posted in ${channel}\nNew members get **Unverified** until they click Verify.`
+            ),
+          ],
+        });
+      } catch (err) {
+        return message.reply({
+          embeds: [errorEmbed(message.guild.id, 'Verify', err.message || 'Could not set up verification.')],
+        });
+      }
     },
   },
 
@@ -1201,7 +1475,9 @@ const commands = {
       if (!memberHasAdmin(message.member)) {
         return message.reply({ embeds: [errorEmbed(message.guild.id, 'Denied', 'Admin required.')] });
       }
+      const { ensureAutomod } = require('../features/automod');
       const cfg = loadGuild(message.guild.id);
+      ensureAutomod(cfg);
       const sub = (args[0] || '').toLowerCase();
       if (sub === 'on') cfg.automod.enabled = true;
       else if (sub === 'off') cfg.automod.enabled = false;
@@ -1211,6 +1487,79 @@ const commands = {
       } else if (sub === 'word' && args[1]) {
         const word = args.slice(1).join(' ').toLowerCase();
         if (!cfg.automod.badWords.includes(word)) cfg.automod.badWords.push(word);
+      } else if ((sub === 'unword' || sub === 'removeword') && args[1]) {
+        const word = args.slice(1).join(' ').toLowerCase();
+        cfg.automod.badWords = cfg.automod.badWords.filter((w) => w !== word);
+      } else if (sub === 'exempt') {
+        const kind = (args[1] || '').toLowerCase();
+        const ch = message.mentions.channels.first();
+        const role = message.mentions.roles.first();
+        if (kind === 'channel' || ch) {
+          const id = ch?.id || args[2]?.replace(/[<#>]/g, '');
+          if (!id) {
+            return message.reply({
+              embeds: [errorEmbed(message.guild.id, 'AutoMod', 'Usage: `automod exempt channel #channel`')],
+            });
+          }
+          if (!cfg.automod.exemptChannelIds.includes(id)) cfg.automod.exemptChannelIds.push(id);
+        } else if (kind === 'role' || role) {
+          const id = role?.id || args[2]?.replace(/[<@&>]/g, '');
+          if (!id) {
+            return message.reply({
+              embeds: [errorEmbed(message.guild.id, 'AutoMod', 'Usage: `automod exempt role @Role`')],
+            });
+          }
+          if (!cfg.automod.exemptRoleIds.includes(id)) cfg.automod.exemptRoleIds.push(id);
+        } else {
+          return message.reply({
+            embeds: [
+              errorEmbed(
+                message.guild.id,
+                'AutoMod',
+                'Usage: `automod exempt channel #ch` · `automod exempt role @Role` · `automod unexempt …`'
+              ),
+            ],
+          });
+        }
+      } else if (sub === 'unexempt') {
+        const ch = message.mentions.channels.first();
+        const role = message.mentions.roles.first();
+        if (ch) cfg.automod.exemptChannelIds = cfg.automod.exemptChannelIds.filter((id) => id !== ch.id);
+        else if (role) cfg.automod.exemptRoleIds = cfg.automod.exemptRoleIds.filter((id) => id !== role.id);
+        else {
+          return message.reply({
+            embeds: [errorEmbed(message.guild.id, 'AutoMod', 'Mention a #channel or @Role to unexempt.')],
+          });
+        }
+      } else if (sub === 'mentions' || sub === 'mention') {
+        const n = parseInt(args[1], 10);
+        if (!n || n < 1) {
+          return message.reply({
+            embeds: [
+              errorEmbed(
+                message.guild.id,
+                'AutoMod',
+                `Current max mentions: **${cfg.automod.maxMentions || 5}**\nUsage: \`automod mentions <number>\``
+              ),
+            ],
+          });
+        }
+        cfg.automod.maxMentions = Math.min(50, n);
+      } else if (sub === 'caps') {
+        cfg.automod.antiCaps = !cfg.automod.antiCaps;
+      } else if (sub === 'emoji' || sub === 'emojis') {
+        cfg.automod.antiEmoji = !cfg.automod.antiEmoji;
+      } else if (sub === 'punish') {
+        const mode = (args[1] || '').toLowerCase();
+        if (!['none', 'mute', 'warn'].includes(mode)) {
+          return message.reply({
+            embeds: [
+              errorEmbed(message.guild.id, 'AutoMod', 'Usage: `automod punish none|mute|warn`'),
+            ],
+          });
+        }
+        cfg.automod.punish = mode;
+        if (args[2]) cfg.automod.punishDuration = args[2];
       } else {
         return message.reply({
           embeds: [
@@ -1221,8 +1570,21 @@ const commands = {
                 { label: 'Spam', text: String(cfg.automod.antiSpam) },
                 { label: 'Invites', text: String(cfg.automod.antiInvite) },
                 { label: 'Links', text: String(cfg.automod.antiLinks) },
+                { label: 'Caps', text: String(!!cfg.automod.antiCaps) },
+                { label: 'Emoji spam', text: String(!!cfg.automod.antiEmoji) },
+                { label: 'Max mentions', text: String(cfg.automod.maxMentions || 5) },
+                { label: 'Punish', text: `${cfg.automod.punish || 'none'} (${cfg.automod.punishDuration || '10m'})` },
                 { label: 'Words', text: cfg.automod.badWords.join(', ') || 'none' },
-              ]) + '\n\nUsage: `automod on|off|spam|invites|links|word <text>`',
+                {
+                  label: 'Exempt channels',
+                  text: (cfg.automod.exemptChannelIds || []).map((id) => `<#${id}>`).join(' ') || 'none',
+                },
+                {
+                  label: 'Exempt roles',
+                  text: (cfg.automod.exemptRoleIds || []).map((id) => `<@&${id}>`).join(' ') || 'none',
+                },
+              ]) +
+                '\n\n`automod on|off|spam|invites|links|caps|emoji|mentions <n>|punish|word|unword|exempt|unexempt`',
             }),
           ],
         });
@@ -1243,6 +1605,11 @@ const commands = {
       }
       const kind = (args[0] || '').toLowerCase();
       const id = args[1];
+      const {
+        templateHomePayload,
+        templatePickPayload,
+      } = require('../ui/components');
+      const { isFreeEdition, isFreeServerTemplateAllowed } = require('../utils/edition');
 
       if (kind === 'end' || kind === 'fixend' || kind === 'footer') {
         const result = await ensureEmptyEndCategory(message.guild);
@@ -1261,7 +1628,40 @@ const commands = {
         });
       }
 
-      if (kind === 'server' && id) {
+      // Interactive menu: .template  OR  .template channels  OR  .template roles
+      if (!kind || kind === 'menu' || kind === 'ui') {
+        return message.reply(templateHomePayload(message.guild.id));
+      }
+      if (['server', 'channels', 'channel', 'categories', 'category', 'cats'].includes(kind) && !id) {
+        return message.reply(templatePickPayload(message.guild.id, 'server'));
+      }
+      if (['roles', 'role'].includes(kind) && !id) {
+        if (isFreeEdition()) {
+          return message.reply({
+            embeds: [
+              errorEmbed(
+                message.guild.id,
+                'Ougi Free',
+                'Role templates are **Pro-only**. Use `.template` for the free Community Hub layout.'
+              ),
+            ],
+          });
+        }
+        return message.reply(templatePickPayload(message.guild.id, 'roles'));
+      }
+
+      if ((kind === 'server' || kind === 'channels') && id) {
+        if (!isFreeServerTemplateAllowed(id)) {
+          return message.reply({
+            embeds: [
+              errorEmbed(
+                message.guild.id,
+                'Ougi Free',
+                'Free includes **Community Hub** only. Extra layouts are Pro.'
+              ),
+            ],
+          });
+        }
         const wipeChannels = (args[2] || '').toLowerCase() === 'wipe';
         if (wipeChannels) {
           await message.reply({
@@ -1281,42 +1681,56 @@ const commands = {
             /* ignore */
           }
         }
+        const staffNote = result.staffRoles?.length
+          ? `\n\nStaff access: **${result.staffRoles.join(', ')}**`
+          : `\n\n_No mod/staff roles found — apply a role template first._`;
+        const ticketNote = result.ticketsSetup?.ok
+          ? `\n\n**Tickets ready** — panel in <#${result.ticketsSetup.panelChannelId}>` +
+            (result.ticketsSetup.buyerRoleId
+              ? ` · Buyer <@&${result.ticketsSetup.buyerRoleId}> for priority`
+              : '')
+          : '';
         return message.channel.send({
           embeds: [
             successEmbed(
               message.guild.id,
               'Server Template Applied',
-              `${wipeChannels ? 'Wiped channels, then applied' : 'Applied'} **${result.template.name}**\n\`\`\`\n${result.created.join('\n')}\n\`\`\``
+              `${wipeChannels ? 'Wiped channels, then applied' : 'Applied'} **${result.template.name}**\n\`\`\`\n${result.created.join('\n')}\n\`\`\`${staffNote}${ticketNote}`
             ),
           ],
         });
       }
-      if (kind === 'roles' && id) {
+      if ((kind === 'roles' || kind === 'role') && id) {
+        if (isFreeEdition()) {
+          return message.reply({
+            embeds: [
+              errorEmbed(
+                message.guild.id,
+                'Ougi Free',
+                'Role templates are **Pro-only**.'
+              ),
+            ],
+          });
+        }
         const result = await applyRoleTemplate(message.guild, id);
+        const createdBlock = result.created.length
+          ? result.created.map((r) => `→ ${r}`).join('\n')
+          : '_No new roles (all names already existed)._';
+        const skippedBlock = result.skipped?.length
+          ? `\n\n__**Skipped**__\n${result.skipped.map((r) => `→ ${r}`).join('\n')}`
+          : '';
         return message.reply({
           embeds: [
             successEmbed(
               message.guild.id,
               'Role Template Applied',
-              `**${result.template.name}**\n${result.created.map((r) => `→ ${r}`).join('\n')}`
+              `**${result.template.name}**\n${createdBlock}${skippedBlock}\n\n_Staff/VIP channel permissions were re-synced._`
             ),
           ],
         });
       }
-      const serverList = SERVER_TEMPLATES.map((t) => `→ __**${t.id}**__ — ${t.name}`).join('\n');
-      const roleList = ROLE_TEMPLATES.map((t) => `→ __**${t.id}**__ — ${t.name}`).join('\n');
-      return message.reply({
-        embeds: [
-          baseEmbed(message.guild.id, {
-            title: 'Templates',
-            description:
-              `__**Server templates**__\n${serverList}\n\n__**Role templates**__\n${roleList}\n\n` +
-              'Apply: `template server community` · `template server community wipe` · `template roles staff-ladder`\n' +
-              'Fix empty end closer: `template end`\n' +
-              'Or use the **Templates** button — choose **Apply** or **Wipe + Apply**.',
-          }),
-        ],
-      });
+
+      return message.reply(templateHomePayload(message.guild.id));
     },
   },
 
@@ -1351,20 +1765,100 @@ const commands = {
   ticketclose: {
     description: 'Close current ticket',
     async execute(message) {
-      const { closeTicket } = require('../features/tickets');
-      // fake interaction-like
-      const cfg = loadGuild(message.guild.id);
-      if (!cfg.tickets.open?.[message.channel.id]) {
+      const { closeTicketChannel } = require('../features/tickets');
+      const result = await closeTicketChannel(message.channel, message.author);
+      if (!result.ok) {
         return message.reply({
-          embeds: [errorEmbed(message.guild.id, 'Ticket', 'Not a ticket channel.')],
+          embeds: [errorEmbed(message.guild.id, 'Ticket', result.error)],
         });
       }
-      await message.reply({
-        embeds: [baseEmbed(message.guild.id, { title: 'Closing Ticket', description: 'Deleting in 3 seconds...' })],
+      return message.reply({
+        embeds: [
+          baseEmbed(message.guild.id, {
+            title: 'Closing Ticket',
+            description: 'Transcript saved. Channel deletes in a few seconds…',
+          }),
+        ],
       });
-      delete cfg.tickets.open[message.channel.id];
+    },
+  },
+
+  ticketbuyer: {
+    description: 'Set the Buyer role for priority tickets',
+    mod: true,
+    async execute(message, args) {
+      if (!memberHasAdmin(message.member)) {
+        return message.reply({ embeds: [errorEmbed(message.guild.id, 'Denied', 'Admin required.')] });
+      }
+      const cfg = loadGuild(message.guild.id);
+      const raw = (args[0] || '').toLowerCase();
+      if (!raw || raw === 'status' || raw === 'show') {
+        const id = cfg.tickets.buyerRoleId;
+        return message.reply({
+          embeds: [
+            baseEmbed(message.guild.id, {
+              title: 'Priority Ticket · Buyer Role',
+              description:
+                rulesStyleList([
+                  {
+                    label: 'Configured',
+                    text: id ? `<@&${id}> (\`${id}\`)` : '_none — falls back to any role named Buyer_',
+                  },
+                  {
+                    label: 'Naming',
+                    text: '`priority-ticket-623` when the opener has the buyer role',
+                  },
+                ]) +
+                '\n\nSet: `ticketbuyer @Buyer`\nClear: `ticketbuyer clear`',
+            }),
+          ],
+        });
+      }
+      if (raw === 'clear' || raw === 'off' || raw === 'none' || raw === 'reset') {
+        cfg.tickets.buyerRoleId = null;
+        saveGuild(message.guild.id, cfg);
+        return message.reply({
+          embeds: [
+            successEmbed(
+              message.guild.id,
+              'Buyer Role Cleared',
+              'Priority tickets still work for any role with **Buyer** in the name.'
+            ),
+          ],
+        });
+      }
+      const role =
+        message.mentions.roles.first() ||
+        message.guild.roles.cache.get(args[0]) ||
+        message.guild.roles.cache.find((r) => r.name.toLowerCase() === args.join(' ').toLowerCase());
+      if (!role || role.id === message.guild.id) {
+        return message.reply({
+          embeds: [
+            errorEmbed(
+              message.guild.id,
+              'Buyer Role',
+              'Mention a role: `ticketbuyer @Buyer`'
+            ),
+          ],
+        });
+      }
+      // @everyone / managed integration roles shouldn't be buyer gates
+      if (role.managed) {
+        return message.reply({
+          embeds: [errorEmbed(message.guild.id, 'Buyer Role', 'Pick a normal server role (not a bot/integration role).')],
+        });
+      }
+      cfg.tickets.buyerRoleId = role.id;
       saveGuild(message.guild.id, cfg);
-      setTimeout(() => message.channel.delete('Ticket closed').catch(() => {}), 3000);
+      return message.reply({
+        embeds: [
+          successEmbed(
+            message.guild.id,
+            'Buyer Role Set',
+            `Members with ${role} open **priority** tickets like \`priority-ticket-623\`.`
+          ),
+        ],
+      });
     },
   },
 
@@ -1426,10 +1920,10 @@ commands.ticketpanel.execute = async function ticketPanelExec(message, args) {
       ? raw.split('|').map((s) => s.trim())
       : [raw, 'support', 'dot'];
     // support both: Label | prefix | desc   AND   Label | prefix | style | desc
-    const { parseStyle, formatTicketChannelName } = require('../features/tickets');
+    const { parseStyle } = require('../features/tickets');
     let style = 'dot';
-    let description = 'Click below to open a ticket.';
-    if (['dot', 'pipe', 'dash'].includes((styleRaw || '').toLowerCase())) {
+    let description = 'Need help? Open a private ticket with staff.';
+    if (['star', 'dot', 'pipe', 'dash'].includes((styleRaw || '').toLowerCase())) {
       style = parseStyle(styleRaw);
       description = descParts.join('|') || description;
     } else {
@@ -1441,7 +1935,7 @@ commands.ticketpanel.execute = async function ticketPanelExec(message, args) {
           errorEmbed(
             message.guild.id,
             'Ticket Panel',
-            'Usage: `ticketpanel quick Label | prefix | style | description`\nStyle: `dot` `pipe` `dash`'
+            'Usage: `ticketpanel quick Label | prefix | style | description`\nStyle: `star` `dot` `pipe` `dash`'
           ),
         ],
       });
@@ -1460,13 +1954,7 @@ commands.ticketpanel.execute = async function ticketPanelExec(message, args) {
     saveGuild(message.guild.id, cfg);
     await postTicketPanel(message.channel, message.guild.id, panel);
     return message.reply({
-      embeds: [
-        successEmbed(
-          message.guild.id,
-          'Ticket Panel',
-          `Channels will look like \`${formatTicketChannelName(panel, '0001')}\``
-        ),
-      ],
+      embeds: [successEmbed(message.guild.id, 'Ticket Panel', `Posted in ${message.channel}.`)],
     });
   }
   return message.reply({
@@ -1474,9 +1962,9 @@ commands.ticketpanel.execute = async function ticketPanelExec(message, args) {
       baseEmbed(message.guild.id, {
         title: 'Ticket Panel',
         description:
-          '→ Use **Tickets** on the control panel for the full builder\n' +
-          '→ Or: `ticketpanel quick Support | support | dot | Click to open a ticket`\n' +
-          '→ Styles: **dot** `🎫・support-0001` · **pipe** `🎫｜support-0001` · **dash** `🎫-support-0001`',
+          '→ Use **Tickets** on the control panel\n' +
+          '→ Or: `ticketpanel quick Support | support | Click to open a ticket`\n' +
+          '→ Buyer role → priority tickets (`ticketbuyer @Buyer`)',
       }),
     ],
   });
@@ -1486,6 +1974,12 @@ module.exports = { commands, createPanel, helpEmbed, HELP_PAGES, runNuke };
 
 // Aliases
 commands.gstart = commands.giveaway;
+commands.color = commands.theme;
+commands.colors = commands.theme;
+commands.colours = commands.theme;
+commands.ai = commands.ask;
+commands.aibuild = commands.askbuild;
+commands.buildchannels = commands.askbuild;
 
 const { extraCommands } = require('./extra');
 Object.assign(commands, extraCommands);

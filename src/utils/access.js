@@ -2,12 +2,12 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const ROOT = path.join(__dirname, '..', '..');
-const ACCESS_PATH = path.join(ROOT, 'data', 'access.json');
+const { dataFile } = require('./data-paths');
+const ACCESS_PATH = dataFile('access.json');
 
 function defaultAccess() {
   return {
-    privateMode: true,
+    privateMode: process.env.OUGI_PC_AGENT === '1' ? false : true,
     allowedGuildIds: [],
     ownerDiscordIds: [],
     requests: [],
@@ -44,7 +44,22 @@ function isPrivateMode() {
 function isGuildAllowed(guildId) {
   const cfg = loadAccess();
   if (!cfg.privateMode) return true;
-  return cfg.allowedGuildIds.map(String).includes(String(guildId));
+  const id = String(guildId);
+
+  // Paid hosted seat (dashboard activate)
+  try {
+    const { getByGuild } = require('./subscriptions');
+    const sub = getByGuild(id);
+    if (sub) {
+      if (sub.status === 'revoked' || sub.status === 'expired') return false;
+      if (sub.expiresAt != null && Date.now() > sub.expiresAt) return false;
+      if (sub.status === 'active' && sub.guildId === id) return true;
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return cfg.allowedGuildIds.map(String).includes(id);
 }
 
 function allowGuild(guildId, note = '') {

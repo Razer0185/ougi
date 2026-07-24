@@ -85,7 +85,9 @@
     document.getElementById('meDiscord').textContent = user.discord;
     document.getElementById('meAuth').textContent =
       user.authProvider === 'google' ? 'Google' : 'Email / password';
-    document.getElementById('goPay').href = next.includes('.html') ? next : 'pay.html';
+    document.getElementById('goPay').href = 'pay.html';
+    const goHost = document.getElementById('goHost');
+    if (goHost) goHost.href = 'host.html';
     const usePassword = Boolean(user.hasPassword);
     document.getElementById('deletePasswordWrap').hidden = !usePassword;
     document.getElementById('deleteConfirmWrap').hidden = usePassword;

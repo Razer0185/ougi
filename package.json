@@ -5,18 +5,23 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "start:free": "node index-free.js",
     "start:hosted": "node scripts/start-hosted.js",
     "dev": "node --watch index.js",
     "host": "node host/server.js",
     "host:quiet": "node host/server.js",
     "site": "node website/server.js",
     "site:open": "node website/server.js",
+    "host-app:build": "dotnet publish desktop/OugiHost/OugiHost.csproj -c Release -r win-x64 --self-contained true -o desktop/dist && node scripts/copy-host-app.js",
+    "host-app:seal": "node scripts/seal-runtime.js",
+    "host-app:pack": "node scripts/pack-ougi-host.js",
     "test:security": "node --test website/security.test.js"
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^1.0.2",
     "bcryptjs": "^3.0.3",
     "discord.js": "^14.16.3",
     "stripe": "^17.7.0"

@@ -4,59 +4,75 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Receipt — Ougi</title>
-  <link rel="stylesheet" href="styles.css?v=20260723d" />
+  <link rel="stylesheet" href="styles.css?v=20260723rcp" />
 </head>
 <body>
   <header class="topbar">
-    <a class="logo" href="index.html">Ougi</a>
+    <a class="logo" href="index.html">Ougi<span>.</span></a>
     <nav>
       <a href="index.html">Home</a>
       <a href="pricing.html">Prices</a>
+      <a href="dashboard.html">Dashboard</a>
       <a href="pay.html">Pay</a>
+      <a href="host.html">Host</a>
       <a href="account.html">Account</a>
     </nav>
     <div class="topbar-actions">
       <button class="theme-toggle" type="button" data-theme-toggle><span data-theme-label>Light</span></button>
-      <a class="btn tiny primary" id="navDiscord" href="https://discord.gg/DgGNBzXCcq" target="_blank" rel="noopener">Discord</a>
+      <a class="btn tiny primary" id="navDiscord" href="https://discord.gg/AMaPQfQXGb" target="_blank" rel="noopener">Discord</a>
     </div>
   </header>
 
-  <main class="shell">
-    <h1 class="page-title">Paid</h1>
-    <p class="page-sub">Thanks. Follow the steps, then chat with staff so we can add the bot.</p>
+  <main class="shell receipt-page">
+    <div class="receipt-hero">
+      <p class="receipt-kicker" id="receiptKicker">Payment received</p>
+      <h1 class="page-title">You’re set</h1>
+      <p class="page-sub" id="receiptSub">Follow the steps, then use live chat if you need staff.</p>
+    </div>
 
     <div class="receipt-grid">
-      <div>
-        <div class="receipt-card">
-          <h2 class="pay-section-title" style="margin-top:0">Receipt</h2>
+      <div class="receipt-left">
+        <section class="receipt-card block">
+          <h2>Receipt</h2>
           <div class="receipt-meta">
             <div><span>Order</span><strong id="rOrder">—</strong></div>
             <div><span>Plan</span><strong id="rPlan">—</strong></div>
             <div><span>Amount</span><strong id="rAmount">—</strong></div>
             <div><span>Method</span><strong id="rMethod">—</strong></div>
-            <div><span>Buyer</span><strong id="rBuyer">—</strong></div>
+            <div class="receipt-meta-wide"><span>Buyer</span><strong id="rBuyer">—</strong></div>
           </div>
-        </div>
-        <ol class="steps">
-          <li><div class="num">1</div><div><strong>Wait for staff</strong><p>Someone joins your Discord server.</p></div></li>
-          <li><div class="num">2</div><div><strong>Give Administrator</strong><p>Temporary Admin is fine.</p></div></li>
-          <li><div class="num">3</div><div><strong>We add Ougi</strong><p>Then you can remove their role.</p></div></li>
-          <li><div class="num">?</div><div><strong>Stuck?</strong><p>Use chat or <a id="discordLink" href="https://discord.gg/DgGNBzXCcq" target="_blank" rel="noopener">Discord</a>.</p></div></li>
-        </ol>
+          <div class="receipt-actions" id="receiptActions">
+            <a class="btn primary" id="nextAction" href="host.html">Open Host</a>
+            <a class="btn ghost" id="discordLink" href="https://discord.gg/AMaPQfQXGb" target="_blank" rel="noopener">Join Discord</a>
+          </div>
+        </section>
+
+        <section class="receipt-card block">
+          <h2>Next steps</h2>
+          <ol class="receipt-steps" id="receiptSteps">
+            <!-- filled by receipt.js -->
+          </ol>
+        </section>
       </div>
-      <div id="chatMount"></div>
+
+      <aside class="receipt-right">
+        <div id="chatMount" class="receipt-chat-mount"></div>
+        <p class="note receipt-chat-hint">
+          Staff replies here. Keep this tab open after PayPal / gift / crypto so we can activate you.
+        </p>
+      </aside>
     </div>
   </main>
 
   <footer class="foot">
     <strong>Ougi</strong>
-    <span><a href="pay.html">Back to pay</a></span>
+    <span><a href="pay.html">Back to pay</a> · <a href="account.html">Account</a> · <a href="host.html">Host</a></span>
   </footer>
 
-  <script src="config.js?v=20260723d"></script>
-  <script src="theme.js?v=20260723d"></script>
-  <script src="site.js?v=20260723d"></script>
-  <script src="chat-widget.js?v=20260723d"></script>
-  <script src="receipt.js?v=20260723d"></script>
+  <script src="config.js?v=20260723rcp"></script>
+  <script src="theme.js?v=20260723rcp"></script>
+  <script src="site.js?v=20260723rcp"></script>
+  <script src="chat-widget.js?v=20260723rcp"></script>
+  <script src="receipt.js?v=20260723rcp"></script>
 </body>
 </html>

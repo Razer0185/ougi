@@ -3,7 +3,7 @@
  */
 const { baseEmbed, successEmbed, errorEmbed } = require('../utils/embeds');
 const { loadGuild, saveGuild } = require('../utils/store');
-const { channelPick, nukeChannelPick, userPickRow } = require('../ui/components');
+const { channelPick, nukeChannelPick, userPickRow, modal } = require('../ui/components');
 const { ChannelType } = require('discord.js');
 const { ensureLevels, getUserLevel, leaderboard, rankEmbed } = require('../features/levels');
 const { autorolePickRow, postSelfRolePanel } = require('../features/roles');
@@ -27,29 +27,21 @@ async function handleExpandedPanel(interaction, action, requireMod, requireAdmin
 
   if (action === 'purge') {
     if (!(await requireMod(interaction))) return true;
-    await interaction.reply({
-      embeds: [
-        baseEmbed(interaction.guild.id, {
-          title: 'Purge',
-          description: 'In chat: `purge 50` or `purge #channel 50 [@user]`',
-        }),
-      ],
-      ephemeral: true,
-    });
+    await interaction.showModal(
+      modal('panel:purge', 'Purge Messages', [
+        { id: 'amount', label: 'How many? (1-100)', placeholder: '25', value: '25', max: 3 },
+      ])
+    );
     return true;
   }
 
   if (action === 'slowmode') {
     if (!(await requireMod(interaction))) return true;
-    await interaction.reply({
-      embeds: [
-        baseEmbed(interaction.guild.id, {
-          title: 'Slowmode',
-          description: 'In chat: `slowmode 5` or `slowmode #general 10`',
-        }),
-      ],
-      ephemeral: true,
-    });
+    await interaction.showModal(
+      modal('panel:slowmode', 'Channel Slowmode', [
+        { id: 'seconds', label: 'Seconds (0 = off, max 21600)', placeholder: '5', value: '5', max: 5 },
+      ])
+    );
     return true;
   }
 
@@ -91,16 +83,13 @@ async function handleExpandedPanel(interaction, action, requireMod, requireAdmin
 
   if (action === 'giveaway') {
     if (!(await requireMod(interaction))) return true;
-    await interaction.reply({
-      embeds: [
-        baseEmbed(interaction.guild.id, {
-          title: 'Giveaway',
-          description:
-            'Start with:\n`giveaway prize | 1h | winners | max|unlimited | server`\n\nExample: `giveaway nitro | 1h | 1`',
-        }),
-      ],
-      ephemeral: true,
-    });
+    await interaction.showModal(
+      modal('panel:giveaway', 'Start Giveaway', [
+        { id: 'prize', label: 'Prize', placeholder: 'Nitro', max: 100 },
+        { id: 'duration', label: 'Duration (e.g. 1h, 30m, 1d)', placeholder: '1h', max: 10 },
+        { id: 'winners', label: 'Winners', placeholder: '1', value: '1', max: 2 },
+      ])
+    );
     return true;
   }
 
@@ -230,32 +219,28 @@ async function handleExpandedPanel(interaction, action, requireMod, requireAdmin
 
   if (action === 'autoresponder') {
     if (!(await requireAdmin(interaction))) return true;
-    await interaction.reply({
-      embeds: [
-        baseEmbed(interaction.guild.id, {
-          title: 'Autoresponder',
-          description:
-            '→ `autorespond add hi | hello there`\n' +
-            '→ `autorespond list`\n' +
-            '→ `autorespond remove hi`',
-        }),
-      ],
-      ephemeral: true,
-    });
+    await interaction.showModal(
+      modal('panel:autorespond', 'Add Autoresponder', [
+        { id: 'trigger', label: 'Trigger word/phrase', placeholder: 'hi', max: 64 },
+        { id: 'response', label: 'Bot reply', style: 'long', placeholder: 'hello there!', max: 500 },
+      ])
+    );
     return true;
   }
 
   if (action === 'sticky') {
     if (!(await requireMod(interaction))) return true;
-    await interaction.reply({
-      embeds: [
-        baseEmbed(interaction.guild.id, {
-          title: 'Sticky',
-          description: '→ `sticky Your message here`\n→ `sticky clear`',
-        }),
-      ],
-      ephemeral: true,
-    });
+    await interaction.showModal(
+      modal('panel:sticky', 'Sticky Message', [
+        {
+          id: 'text',
+          label: 'Message (or type clear)',
+          style: 'long',
+          placeholder: 'Rules reminder…',
+          max: 1000,
+        },
+      ])
+    );
     return true;
   }
 
@@ -281,55 +266,48 @@ async function handleExpandedPanel(interaction, action, requireMod, requireAdmin
 
   if (action === 'poll') {
     if (!(await requireMod(interaction))) return true;
-    await interaction.reply({
-      embeds: [
-        baseEmbed(interaction.guild.id, {
-          title: 'Poll',
-          description: '`poll Question | Option A | Option B`',
-        }),
-      ],
-      ephemeral: true,
-    });
+    await interaction.showModal(
+      modal('panel:poll', 'Create Poll', [
+        { id: 'question', label: 'Question', placeholder: 'Favorite color?', max: 200 },
+        { id: 'options', label: 'Options (split with |)', placeholder: 'Red | Blue | Green', max: 400 },
+      ])
+    );
     return true;
   }
 
   if (action === 'remind') {
-    await interaction.reply({
-      embeds: [
-        baseEmbed(interaction.guild.id, {
-          title: 'Remind',
-          description: '`remind 1h do the thing`',
-        }),
-      ],
-      ephemeral: true,
-    });
+    await interaction.showModal(
+      modal('panel:remind', 'Set Reminder', [
+        { id: 'when', label: 'When (e.g. 1h, 30m, 1d)', placeholder: '1h', max: 10 },
+        { id: 'text', label: 'Remind me to…', style: 'long', placeholder: 'do the thing', max: 500 },
+      ])
+    );
     return true;
   }
 
   if (action === 'embed') {
     if (!(await requireMod(interaction))) return true;
-    await interaction.reply({
-      embeds: [
-        baseEmbed(interaction.guild.id, {
-          title: 'Embed Builder',
-          description: '`embed Title | Description | [imageURL]`\nOr `embed #channel Title | Desc`',
-        }),
-      ],
-      ephemeral: true,
-    });
+    await interaction.showModal(
+      modal('panel:embed', 'Embed Builder', [
+        { id: 'title', label: 'Title', placeholder: 'Announcement', max: 100 },
+        { id: 'description', label: 'Description', style: 'long', placeholder: 'Your message…', max: 1500 },
+        { id: 'image', label: 'Image URL (optional)', required: false, placeholder: 'https://…', max: 300 },
+      ])
+    );
     return true;
   }
 
   if (action === 'afk') {
-    await interaction.reply({
-      embeds: [
-        baseEmbed(interaction.guild.id, {
-          title: 'AFK',
-          description: '`afk be right back` · `afk clear`',
-        }),
-      ],
-      ephemeral: true,
-    });
+    await interaction.showModal(
+      modal('panel:afk', 'AFK Status', [
+        {
+          id: 'reason',
+          label: 'Reason (or type clear)',
+          placeholder: 'be right back',
+          max: 200,
+        },
+      ])
+    );
     return true;
   }
 
@@ -337,22 +315,13 @@ async function handleExpandedPanel(interaction, action, requireMod, requireAdmin
     if (!(await requireAdmin(interaction))) return true;
     const list = listCustomCommands(interaction.guild.id);
     const prefix = require('../utils/store').getGuildPrefix(interaction.guild.id);
-    const listText = list.length
-      ? list.map((c) => `• \`${prefix}${c}\``).join('\n')
-      : 'You have none yet.';
+    const body =
+      list.length === 0
+        ? `_None yet._\nUse \`${prefix}custom add name | response\``
+        : list.map((c) => `→ \`${prefix}${c.name}\``).join('\n') +
+          `\n\nManage: \`${prefix}custom add name | response\``;
     await interaction.reply({
-      embeds: [
-        baseEmbed(interaction.guild.id, {
-          title: 'Custom Commands',
-          description:
-            `**Your commands**\n${listText}\n\n` +
-            `**How to use**\n` +
-            `• Add: \`${prefix}cc add hello Hi everyone!\`\n` +
-            `• Remove: \`${prefix}cc remove hello\`\n` +
-            `• List: \`${prefix}cc list\`\n\n` +
-            `After you add one, type \`${prefix}hello\` in chat and the bot replies.`,
-        }),
-      ],
+      embeds: [baseEmbed(interaction.guild.id, { title: 'Custom Commands', description: body })],
       ephemeral: true,
     });
     return true;

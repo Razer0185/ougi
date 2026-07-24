@@ -121,7 +121,7 @@
   window.mountOugiChat = function (root, options = {}) {
     if (!root) return;
     const discordInvite =
-      (window.OUGI_SITE && window.OUGI_SITE.discordInvite) || 'https://discord.gg/DgGNBzXCcq';
+      (window.OUGI_SITE && window.OUGI_SITE.discordInvite) || 'https://discord.gg/AMaPQfQXGb';
     const order = options.order || null;
     const autoOpen = options.autoOpen !== false;
 
