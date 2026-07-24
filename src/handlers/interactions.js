@@ -1079,7 +1079,6 @@ async function handleTemplateApply(interaction) {
         try {
           const { createPanel } = require('../commands');
           const panel = await createPanel(interaction.guild, interaction.client, {
-            forceNew: true,
             skipThemeRoles: true,
           });
           panelNote = `\n\nControl panel recreated in ${panel}.`;
@@ -1094,20 +1093,37 @@ async function handleTemplateApply(interaction) {
 
       await interaction.editReply({
         embeds: [
-          successEmbed(
-            interaction.guild.id,
-            'Server Built',
-            `${wipeChannels ? `Wiped existing channels, then applied **${result.template.name}**.` : `**${result.template.name}** applied.`}\n\`\`\`\n${result.created.join('\n')}\n\`\`\`${staffNote}${panelNote}`
-          ),
+          baseEmbed(interaction.guild.id, {
+            title: 'Finishing…',
+            description: 'Channels built. Setting up tickets…',
+          }),
         ],
       });
 
-      // Tickets after reply so the panel doesn't sit on "Building…"
-      const { setupTicketsFromTemplate } = require('../features/tickets');
-      setupTicketsFromTemplate(interaction.guild, {
-        staffRoles: result.staffRolesRaw || [],
-        vipRoles: result.vipRolesRaw || [],
-      }).catch((err) => console.error('ticket setup after template:', err.message));
+      let ticketNote = '';
+      try {
+        const { setupTicketsFromTemplate } = require('../features/tickets');
+        const ticketsSetup = await setupTicketsFromTemplate(interaction.guild, {
+          staffRoles: result.staffRolesRaw || [],
+          vipRoles: result.vipRolesRaw || [],
+        });
+        if (ticketsSetup?.ok) {
+          ticketNote = `\n\nTickets ready in <#${ticketsSetup.panelChannelId}>.`;
+        }
+      } catch (err) {
+        console.error('ticket setup after template:', err.message);
+        ticketNote = '\n\n_Ticket auto-setup failed — open Templates again or use Tickets on the panel._';
+      }
+
+      await interaction.editReply({
+        embeds: [
+          successEmbed(
+            interaction.guild.id,
+            'Server Built',
+            `${wipeChannels ? `Wiped existing channels, then applied **${result.template.name}**.` : `**${result.template.name}** applied.`}\n\`\`\`\n${result.created.join('\n')}\n\`\`\`${staffNote}${ticketNote}${panelNote}`
+          ),
+        ],
+      });
     } else {
       await interaction.editReply({
         embeds: [
@@ -1140,18 +1156,6 @@ async function handleTemplateApply(interaction) {
     });
   }
   return true;
-}
-
-// Patch handleButton to catch template apply & automod earlier - better to call at start of handleButton
-const _origHandleButton = handleButton;
-async function handleButtonWrapped(interaction) {
-  if (interaction.customId.startsWith('template:apply:')) {
-    return handleTemplateApply(interaction);
-  }
-  if (interaction.customId.startsWith('automod:')) {
-    // handled inside _orig via panel path - need early path
-  }
-  return _origHandleButton(interaction);
 }
 
 async function handleRoleSelect(interaction) {

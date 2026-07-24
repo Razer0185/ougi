@@ -1768,29 +1768,8 @@ const commands = {
   ticketpanel: {
     description: 'Create a ticket panel',
     mod: true,
-    async execute(message) {
-      if (!memberHasAdmin(message.member)) {
-        return message.reply({ embeds: [errorEmbed(message.guild.id, 'Denied', 'Admin required.')] });
-      }
-      // Prefix flow: open modal via a button prompt isn't possible without interaction.
-      // Collect via simple args prompt message — tell them to use panel for full UI.
-      return message.reply({
-        embeds: [
-          baseEmbed(message.guild.id, {
-            title: 'Ticket Panel',
-            description:
-              'Use the **Tickets** button on the control panel to build a custom panel ' +
-              '(label, description, channel prefix, emoji).\n\n' +
-              'Quick create: `ticketpanel quick <label> | <prefix> | <description>`',
-          }),
-        ],
-      });
-    },
-  },
-
-  'ticketpanel-quick': {
-    description: 'internal',
-    skip: true,
+    // Real implementation assigned below as ticketPanelExec
+    async execute() {},
   },
 
   ticketclose: {

@@ -13,6 +13,12 @@ const path = require('path');
 
 const root = path.join(__dirname, '..');
 
+// Hosted deploy is always Pro — never inherit a free-edition env by mistake
+if (String(process.env.OUGI_EDITION || '').toLowerCase() === 'free') {
+  console.warn('[hosted] OUGI_EDITION=free ignored on Railway/hosted — running Pro (index.js).');
+}
+delete process.env.OUGI_EDITION;
+
 // Railway always provides PORT — never bind localhost-only
 if (!process.env.OUGI_SITE_HOST || process.env.OUGI_SITE_HOST.includes('://')) {
   process.env.OUGI_SITE_HOST = '0.0.0.0';

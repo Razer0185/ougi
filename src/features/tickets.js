@@ -539,7 +539,7 @@ async function ensureTicketTemplateChannels(guild, { staffRoles = [], vipRoles =
 
 /**
  * After a server template apply (Free + Pro): ensure ticket channels exist,
- * wire Buyer/Support roles, post the panel, and staff priority guide.
+ * wire Buyer/Support roles, and post the ticket panel (no owner how-to spam).
  */
 async function setupTicketsFromTemplate(guild, { staffRoles = [], vipRoles = [] } = {}) {
   if (!guild) return { ok: false, reason: 'no guild' };

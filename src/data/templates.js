@@ -101,6 +101,11 @@ const SERVER_TEMPLATES = [
           { name: 'priority-support', type: 'text', perm: 'staff' },
         ],
       },
+      {
+        name: '╰──── End 🔚 ˅',
+        channels: [],
+        footer: true,
+      },
     ],
   },
   {
