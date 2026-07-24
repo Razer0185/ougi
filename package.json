@@ -8,6 +8,7 @@
     "start:free": "node index-free.js",
     "start:hosted": "node scripts/start-hosted.js",
     "dev": "node --watch index.js",
+    "dev:refresh": "node scripts/dev-refresh.js",
     "host": "node host/server.js",
     "host:quiet": "node host/server.js",
     "site": "node website/server.js",
