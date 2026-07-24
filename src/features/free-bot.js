@@ -31,9 +31,22 @@ let lastUsernameLockAt = 0;
 const recreateCooldown = new Map(); // guildId -> timestamp
 const RECREATE_MS = 4000;
 
+/** In-process promo guard (survives flaky disk; resets only on process restart). */
+const promoMemoryCooldown = new Map(); // guildId -> lastSentAt
+/** After boot, skip channel reminders so redeploys don't blast every server. */
+let freeBotBootedAt = 0;
+const PROMO_BOOT_GRACE_MS = 45 * 60 * 1000;
+/** At most one quiet reminder across all guilds per sweep tick. */
+let lastGlobalPromoAt = 0;
+
 function trialMs() {
   const days = loadConfig().trialDays || 3;
   return days * 24 * 60 * 60 * 1000;
+}
+
+function promoIntervalMs() {
+  const hours = loadConfig().promoIntervalHours || 72;
+  return Math.max(24, hours) * 60 * 60 * 1000;
 }
 
 function trackGuild(guild) {
@@ -45,6 +58,10 @@ function trackGuild(guild) {
   // Fresh trial when first joined, or when they re-invite after we left
   if (existing?.joinedAt && !existing.left) {
     existing.name = guild.name;
+    // Missing timestamp usually means ephemeral disk / redeploy — don't treat as "due now"
+    if (!existing.lastDailyPromoAt) {
+      existing.lastDailyPromoAt = now;
+    }
     data.byGuild[guild.id] = existing;
     saveGuilds(data);
     return existing;
@@ -56,6 +73,8 @@ function trackGuild(guild) {
     leaveAt: now + trialMs(),
     eventId: null,
     left: false,
+    // Seed so maybeDailyPromo won't fire until a full interval (join welcome covers day 0)
+    lastDailyPromoAt: now,
     rejoinCount: (existing?.rejoinCount || 0) + (existing?.left ? 1 : 0),
   };
   data.byGuild[guild.id] = row;
@@ -402,14 +421,32 @@ async function maybeDailyPromo(guild) {
   const cfg = loadConfig();
   if (cfg.dailyPromo === false) return;
 
+  // Redeploys / start-stop used to re-arm "daily" because free-guilds.json is often ephemeral
+  if (freeBotBootedAt && Date.now() - freeBotBootedAt < PROMO_BOOT_GRACE_MS) return;
+
+  const interval = promoIntervalMs();
+  const now = Date.now();
+  // One reminder per sweep globally — avoids blasting every trial server after a wipe
+  if (now - lastGlobalPromoAt < 60 * 60 * 1000) return;
+
+  const memLast = promoMemoryCooldown.get(guild.id) || 0;
+  if (now - memLast < interval) return;
+
   const data = loadGuilds();
   const row = data.byGuild[guild.id];
   if (!row || row.left) return;
   const last = row.lastDailyPromoAt || 0;
-  if (Date.now() - last < 24 * 60 * 60 * 1000) return;
+  if (now - last < interval) return;
 
   const channel = findLeaveNoticeChannel(guild);
   if (!channel) return;
+
+  // Stamp before send so a crash / double-tick cannot spam the same guild
+  row.lastDailyPromoAt = now;
+  data.byGuild[guild.id] = row;
+  saveGuilds(data);
+  promoMemoryCooldown.set(guild.id, now);
+  lastGlobalPromoAt = now;
 
   // No @everyone / @here — mass pings get bots reported and kicked
   try {
@@ -420,13 +457,11 @@ async function maybeDailyPromo(guild) {
           description:
             `Still on the **free trial**.\n\n` +
             `→ Join our Discord: ${cfg.promo?.discordInvite || '—'}\n` +
-            `→ Full Ougi Pro unlocks extra templates, role packs, honeypot, PC Host, AI, and more.`,
+            `→ Full Ougi Pro unlocks extra templates, role packs, honeypot, PC Host, AI, and more.\n\n` +
+            `_Quiet reminder · about every ${Math.round(interval / (24 * 60 * 60 * 1000))} day(s)._`,
         }),
       ],
     });
-    row.lastDailyPromoAt = Date.now();
-    data.byGuild[guild.id] = row;
-    saveGuilds(data);
   } catch (err) {
     console.warn(`Daily promo failed in ${guild.name}:`, err.message);
   }
@@ -459,12 +494,13 @@ async function onFreeGuildJoin(guild, client) {
           }),
         ],
       });
-      // Don't also fire daily on the same day as join
+      // Don't also fire quiet reminder soon after join
       const data = loadGuilds();
       if (data.byGuild[guild.id]) {
         data.byGuild[guild.id].lastDailyPromoAt = Date.now();
         saveGuilds(data);
       }
+      promoMemoryCooldown.set(guild.id, Date.now());
     }
   } catch (err) {
     console.warn(`Free join promo failed in ${guild.name}:`, err.message);
@@ -580,6 +616,7 @@ async function onFreeBotMemberUpdate(oldMember, newMember) {
 
 function startFreeBotLoops(client) {
   if (!isFreeEdition()) return;
+  freeBotBootedAt = Date.now();
   registerPromoEventWatchers(client);
   lockFreeIdentity(client).catch(() => {});
 
@@ -607,6 +644,7 @@ function startFreeBotLoops(client) {
       console.error('Free bot sweep:', err.message);
     }
   };
+  // Don't run promo on the immediate boot tick — wait for the interval
   tick();
   setInterval(tick, 5 * 60 * 1000).unref?.();
 }

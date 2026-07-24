@@ -4,10 +4,9 @@
  * Sync selected secrets from local .env → Railway service (stdin, no echo).
  * Usage: node scripts/sync-railway-secrets.js
  *
- * Syncs: STRIPE_*, GOOGLE_*, OUGI_SITE_ORIGIN, OUGI_DISCORD_INVITE, OUGI_CHAT_SECRET (if set)
+ * Syncs: STRIPE_*, GOOGLE_*, YDC_API_KEY / YOU_API_KEY, OUGI_SITE_ORIGIN, …
  * Does NOT print secret values.
  */
-
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
@@ -21,6 +20,10 @@ const KEYS = [
   'STRIPE_SK',
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET',
+  'YDC_API_KEY',
+  'YOU_API_KEY',
+  'GEMINI_API_KEY',
+  'GOOGLE_AI_API_KEY',
   'OUGI_SITE_ORIGIN',
   'OUGI_DISCORD_INVITE',
   'OUGI_CHAT_SECRET',
@@ -46,6 +49,31 @@ function loadEnv() {
     out[k] = v;
   }
   return out;
+}
+
+/** Prefer .env, else you-api-key.txt (gitignored). */
+function resolveYouApiKey(env) {
+  const fromEnv = String(env.YDC_API_KEY || env.YOU_API_KEY || env.YOUCOM_API_KEY || '').trim();
+  if (fromEnv && !/YOUR_KEY|PASTE|example/i.test(fromEnv)) return fromEnv;
+  for (const name of ['you-api-key.txt', 'YDC_API_KEY.txt', 'ydc-api-key.txt']) {
+    const p = path.join(ROOT, name);
+    if (!fs.existsSync(p)) continue;
+    const v = fs.readFileSync(p, 'utf8').trim().split(/\r?\n/)[0].trim();
+    if (v) return v;
+  }
+  return '';
+}
+
+function resolveGeminiApiKey(env) {
+  const fromEnv = String(env.GEMINI_API_KEY || env.GOOGLE_AI_API_KEY || '').trim();
+  if (fromEnv && !/YOUR_KEY|PASTE|example/i.test(fromEnv)) return fromEnv;
+  for (const name of ['gemini-api-key.txt', 'GOOGLE_AI_API_KEY.txt']) {
+    const p = path.join(ROOT, name);
+    if (!fs.existsSync(p)) continue;
+    const v = fs.readFileSync(p, 'utf8').trim().split(/\r?\n/)[0].trim();
+    if (v) return v;
+  }
+  return '';
 }
 
 function setVar(key, value, { skipDeploys }) {
@@ -82,6 +110,11 @@ function main() {
     env.OUGI_DISCORD_INVITE = 'https://discord.gg/AMaPQfQXGb';
   }
 
+  const youKey = resolveYouApiKey(env);
+  if (youKey) env.YDC_API_KEY = youKey;
+  const gemKey = resolveGeminiApiKey(env);
+  if (gemKey) env.GEMINI_API_KEY = gemKey;
+
   const toSet = [];
   for (const key of KEYS) {
     const val = String(env[key] || '').trim();
@@ -93,7 +126,7 @@ function main() {
   }
 
   if (!toSet.length) {
-    console.log('Nothing to sync. Add Stripe/Google keys to .env first.');
+    console.log('Nothing to sync. Add keys to .env or you-api-key.txt first.');
     process.exit(0);
   }
 

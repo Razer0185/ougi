@@ -73,7 +73,7 @@ const HELP_PAGES = [
     title: 'Settings & Panel',
     body:
       '→ __**prefix**__ · __**theme**__ / __**interfaces**__\n' +
-      '→ __**ask**__ · __**askbuild**__ (AI custom channels)\n' +
+      '→ __**ask**__ · __**askbuild**__ (AI channels + perms; `askbuild undo`)\n' +
       '→ __**botname**__ · __**avatar**__\n' +
       '→ __**help**__ · __**ping**__ · __**serverinfo**__ · __**userinfo**__\n' +
       '→ **✨・ougi** has major actions as buttons (Administrator only)',

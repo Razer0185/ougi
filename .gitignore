@@ -15,6 +15,8 @@ invite-url.txt
 
 you-api-key.txt
 YDC_API_KEY.txt
+gemini-api-key.txt
+GOOGLE_AI_API_KEY.txt
 paypal-api.txt
 
 # Host app binaries / customer package

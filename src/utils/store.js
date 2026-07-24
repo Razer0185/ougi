@@ -177,6 +177,8 @@ const defaults = () => ({
     kind: null,
     at: null,
   },
+  /** Last AI channel build — used for undo (channel/category IDs). */
+  lastAiBuild: null,
 });
 
 function loadGuild(guildId) {

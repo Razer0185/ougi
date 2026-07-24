@@ -118,20 +118,6 @@ async function handleButton(interaction) {
   const id = interaction.customId;
 
   if (id.startsWith('aibuild:')) {
-    const { isFreeEdition, loadConfig } = require('../utils/edition');
-    if (isFreeEdition()) {
-      const promo = loadConfig().promo || {};
-      return interaction.reply({
-        ephemeral: true,
-        embeds: [
-          require('../utils/embeds').errorEmbed(
-            interaction.guild.id,
-            'Ougi Free',
-            `AI channel build is Pro-only.\n\nDiscord: ${promo.discordInvite || '—'}\nBuy: ${promo.productUrl || '—'}`
-          ),
-        ],
-      });
-    }
     const { handleAiBuildButton } = require('../features/ai');
     return handleAiBuildButton(interaction);
   }

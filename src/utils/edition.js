@@ -19,8 +19,13 @@ const DEFAULT_MAIN_GUILD_ID = '1521568250473873438';
 const DEFAULT_CONFIG = {
   mainGuildId: DEFAULT_MAIN_GUILD_ID,
   trialDays: 3,
-  /** Quiet daily reminder (no @everyone — Discord spam risk). */
+  /**
+   * Quiet upgrade reminder in trial servers (no @everyone).
+   * Keep infrequent — Railway restarts used to re-fire when disk state reset.
+   */
   dailyPromo: true,
+  /** Hours between reminders per guild (default 72 = every 3 days). */
+  promoIntervalHours: 72,
   promo: {
     eventName: 'Upgrade to Ougi Pro',
     eventDescription:
@@ -57,6 +62,10 @@ function loadConfig() {
       mainGuildId: String(raw.mainGuildId || DEFAULT_MAIN_GUILD_ID),
       trialDays: Math.max(1, Math.min(30, Number(raw.trialDays) || 3)),
       dailyPromo: raw.dailyPromo !== false,
+      promoIntervalHours: Math.max(
+        24,
+        Math.min(168, Number(raw.promoIntervalHours) || DEFAULT_CONFIG.promoIntervalHours || 72)
+      ),
     };
   } catch {
     return { ...DEFAULT_CONFIG, promo: { ...DEFAULT_CONFIG.promo } };
