@@ -113,14 +113,15 @@ async function main() {
     process.exit(1);
   }
   console.log('License OK — starting bot (no source access in this loader).');
+  process.env.OUGI_LICENSE_OK = '1';
 
-  // Renew ticket while running; quit if payment lapses
+  // Renew ticket while running; quit if payment lapses (tight window)
   setInterval(() => {
     heartbeat().catch((err) => {
       console.error('License expired or revoked:', err.message);
       process.exit(2);
     });
-  }, 10 * 60 * 1000).unref?.();
+  }, 3 * 60 * 1000).unref?.();
 
   // Launch main bot (token from env)
   require('../index.js');

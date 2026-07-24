@@ -14,8 +14,8 @@ namespace OugiHostApp
     /// </summary>
     internal static class RuntimeSeal
     {
-        /// <summary>Must match scripts/seal-runtime.js PASSPHRASE</summary>
-        public const string Passphrase = "OugiHost.Runtime.Seal.v1";
+        /// <summary>Per-build secret from SealSecrets (generated at pack time).</summary>
+        public static string Passphrase => SealSecrets.Passphrase;
 
         public static bool HasPayload()
         {

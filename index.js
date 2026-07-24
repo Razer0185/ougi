@@ -1,6 +1,26 @@
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+
+// Sealed PC Host builds cannot be started by running index.js alone
+try {
+  const sealedMarker = path.join(__dirname, 'SEALED_BUILD.json');
+  if (fs.existsSync(sealedMarker)) {
+    if (process.env.OUGI_PC_AGENT !== '1' || process.env.OUGI_LICENSE_OK !== '1') {
+      console.error(
+        'Ougi sealed build — start from OugiHost.exe with an active PC Host subscription.'
+      );
+      process.exit(1);
+    }
+  } else if (process.env.OUGI_PC_AGENT === '1' && process.env.OUGI_LICENSE_OK !== '1') {
+    console.error('PC Host license not verified.');
+    process.exit(1);
+  }
+} catch (err) {
+  console.error('License gate failed:', err.message || err);
+  process.exit(1);
+}
+
 const {
   Client,
   GatewayIntentBits,

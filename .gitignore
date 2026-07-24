@@ -32,6 +32,7 @@ paypal-api.txt
 /desktop/OugiHost/obj/
 /desktop/OugiHost/Resources/OugiRuntime.dat
 /desktop/OugiHost/Resources/RuntimeVersion.txt
+# Per-build seal key is regenerated on pack; keep a safe dev fallback in SealSecrets.cs
 /host/data/
 /agent/
 !/agent/pc-entry.js
