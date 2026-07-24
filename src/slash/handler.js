@@ -16,7 +16,7 @@ const {
 } = require('../utils/helpers');
 const { parseEventStart } = require('../utils/events');
 const { THEMES } = require('../utils/theme');
-const { helpEmbed, HELP_PAGES, createPanel, runNuke } = require('../commands');
+const { helpEmbed, getHelpPages, createPanel, runNuke } = require('../commands');
 const { helpNav, lockChannelPick, nukeChannelPick } = require('../ui/components');
 const {
   ensureInvites,
@@ -61,6 +61,24 @@ async function handleSlash(interaction) {
   }
 
   try {
+    const { isFreeCommandAllowed, loadConfig } = require('../utils/edition');
+    if (!isFreeCommandAllowed(name)) {
+      const promo = loadConfig().promo || {};
+      await interaction.reply({
+        ephemeral: true,
+        embeds: [
+          errorEmbed(
+            guild.id,
+            'Ougi Free',
+            `**\`/${name}\`** is Pro-only on this free trial bot.\n\n` +
+              `Discord: ${promo.discordInvite || '—'}\n` +
+              `Buy: ${promo.productUrl || '—'}`
+          ),
+        ],
+      });
+      return true;
+    }
+
     if (name === 'ping') {
       await interaction.reply({
         embeds: [
@@ -73,7 +91,7 @@ async function handleSlash(interaction) {
     if (name === 'help') {
       await interaction.reply({
         embeds: [helpEmbed(guild.id, 0)],
-        components: helpNav(0, HELP_PAGES.length, guild.id),
+        components: helpNav(0, getHelpPages().length, guild.id),
         ephemeral: true,
       });
       return true;

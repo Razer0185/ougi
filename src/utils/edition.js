@@ -148,36 +148,101 @@ const FREE_SERVER_TEMPLATE_ID = 'community';
 /** Display name / nickname locked on Free. */
 const FREE_DISPLAY_NAME = 'Ougi Free';
 
-/** Commands blocked on Free (premium teaser). */
+/**
+ * Free uses an allowlist (not a blocklist) so aliases like ask/gstart/color can't bypass Pro gates.
+ * Anything not listed is treated as Pro-only.
+ */
+const FREE_ALLOWED_COMMANDS = new Set([
+  // core
+  'ping',
+  'help',
+  'setup',
+  'panel',
+  'prefix',
+  'serverinfo',
+  'userinfo',
+  // moderation
+  'ban',
+  'kick',
+  'mute',
+  'unmute',
+  'warn',
+  'warnings',
+  'cases',
+  'purge',
+  'slowmode',
+  'lock',
+  'unlock',
+  'nick',
+  'softban',
+  'tempban',
+  'modlog',
+  'automod',
+  // templates (community only — enforced elsewhere)
+  'template',
+  'templates',
+  // tickets
+  'ticket',
+  'tickets',
+  'ticketpanel',
+  'ticketbuyer',
+  'ticketclose',
+  // free admin (HQ only)
+  'free',
+  // invite link helper
+  'invite',
+]);
+
+/** @deprecated kept for exports / older callers — Free gating uses FREE_ALLOWED_COMMANDS */
 const FREE_BLOCKED_COMMANDS = new Set([
   'ai',
+  'ask',
+  'askbuild',
+  'aibuild',
+  'buildchannels',
   'giveaway',
+  'gstart',
+  'gend',
+  'greroll',
   'levels',
+  'leveling',
   'rank',
   'leaderboard',
   'jtc',
   'verify',
   'reactrole',
   'reactionrole',
+  'rr',
   'selfrole',
   'autorole',
   'temprole',
+  'temproles',
   'schedule',
   'sticky',
   'starboard',
   'autorespond',
   'autoresponder',
+  'ar',
   'customcmd',
   'cc',
   'nuke',
   'honeypot',
   'antiraid',
   'suggest',
+  'suggestion',
+  'suggestions',
   'event',
   'welcome',
   'goodbye',
   'interfaces',
   'theme',
+  'color',
+  'colors',
+  'colours',
+  'botname',
+  'avatar',
+  'banner',
+  'access',
 ]);
 
 function isFreePanelActionAllowed(action) {
@@ -191,8 +256,7 @@ function isFreeCommandAllowed(name) {
     .toLowerCase()
     .split(/\s+/)[0];
   if (!n) return true;
-  if (FREE_BLOCKED_COMMANDS.has(n)) return false;
-  return true;
+  return FREE_ALLOWED_COMMANDS.has(n);
 }
 
 function isFreeServerTemplateAllowed(id) {
@@ -228,6 +292,42 @@ function freePanelPages(pages) {
     .filter((p) => (p.buttons || []).length > 0);
 }
 
+/** Trim help so Free doesn't advertise Pro-only tooling as available. */
+function freeHelpPages(pages) {
+  if (!isFreeEdition()) return pages;
+  const keep = new Set(['Moderation', 'Server Tools', 'Settings & Panel']);
+  return (pages || [])
+    .filter((p) => keep.has(p.title))
+    .map((p) => {
+      if (p.title === 'Server Tools') {
+        return {
+          ...p,
+          body:
+            '→ __**setup**__ / __**panel**__ — Free control panel\n' +
+            '→ __**template**__ — Community layout only\n' +
+            '→ __**ticketpanel**__ · __**ticketbuyer**__ · __**ticketclose**__\n' +
+            '→ Upgrade for verify, JTC, welcome, AI, role packs, extra templates',
+        };
+      }
+      if (p.title === 'Settings & Panel') {
+        return {
+          ...p,
+          body:
+            '→ __**prefix**__ · __**help**__ · __**ping**__ · __**serverinfo**__ · __**userinfo**__\n' +
+            '→ __**setup**__ / __**panel**__ · __**automod**__ · __**modlog**__\n' +
+            '→ Panel buttons: moderation, templates (Community), tickets\n' +
+            '→ Pro unlocks AI, levels, giveaways, honeypot, theme, and more',
+        };
+      }
+      return {
+        ...p,
+        body:
+          `${p.body}\n\n` +
+          '_Free trial — nuke / some listed tools need Ougi Pro._',
+      };
+    });
+}
+
 module.exports = {
   DEFAULT_MAIN_GUILD_ID,
   DEFAULT_CONFIG,
@@ -243,6 +343,7 @@ module.exports = {
   mainGuildId,
   isProtectedGuild,
   FREE_PANEL_BUTTONS,
+  FREE_ALLOWED_COMMANDS,
   FREE_BLOCKED_COMMANDS,
   FREE_SERVER_TEMPLATE_ID,
   FREE_DISPLAY_NAME,
@@ -251,4 +352,5 @@ module.exports = {
   isFreeServerTemplateAllowed,
   freeServerTemplates,
   freePanelPages,
+  freeHelpPages,
 };

@@ -438,6 +438,12 @@ client.on('interactionCreate', async (interaction) => {
 });
 
 client.on('messageReactionAdd', (reaction, user) => {
+  try {
+    const { isFreeEdition } = require('./src/utils/edition');
+    if (isFreeEdition()) return;
+  } catch {
+    /* continue Pro handlers */
+  }
   handleReactionAdd(reaction, user, client).catch((err) =>
     console.error('Giveaway reaction add:', err.message)
   );
@@ -450,6 +456,12 @@ client.on('messageReactionAdd', (reaction, user) => {
 });
 
 client.on('messageReactionRemove', (reaction, user) => {
+  try {
+    const { isFreeEdition } = require('./src/utils/edition');
+    if (isFreeEdition()) return;
+  } catch {
+    /* continue Pro handlers */
+  }
   handleReactionRemove(reaction, user).catch((err) =>
     console.error('Giveaway reaction remove:', err.message)
   );
@@ -469,9 +481,17 @@ client.on('messageUpdate', (oldMessage, newMessage) => {
 });
 
 client.on('voiceStateUpdate', (oldState, newState) => {
-  handleVoiceState(oldState, newState).catch((err) => console.error('JTC error:', err.message));
+  try {
+    const { isFreeEdition } = require('./src/utils/edition');
+    if (!isFreeEdition()) {
+      handleVoiceState(oldState, newState).catch((err) => console.error('JTC error:', err.message));
+      handleVoiceXp(oldState, newState).catch((err) => console.error('Voice XP:', err.message));
+    }
+  } catch {
+    handleVoiceState(oldState, newState).catch((err) => console.error('JTC error:', err.message));
+    handleVoiceXp(oldState, newState).catch((err) => console.error('Voice XP:', err.message));
+  }
   logVoiceState(oldState, newState).catch(() => {});
-  handleVoiceXp(oldState, newState).catch((err) => console.error('Voice XP:', err.message));
 });
 
 client.on('guildBanAdd', (ban) => {
@@ -506,10 +526,19 @@ client.on('channelUpdate', (oldChannel, newChannel) => {
 });
 
 client.on('guildMemberAdd', async (member) => {
+  let freeMode = false;
   try {
-    await handleRaidJoin(member);
-  } catch (err) {
-    console.error('Anti-raid:', err.message);
+    freeMode = require('./src/utils/edition').isFreeEdition();
+  } catch {
+    freeMode = false;
+  }
+
+  if (!freeMode) {
+    try {
+      await handleRaidJoin(member);
+    } catch (err) {
+      console.error('Anti-raid:', err.message);
+    }
   }
 
   try {
@@ -519,16 +548,18 @@ client.on('guildMemberAdd', async (member) => {
     console.error('Invite track join:', err.message);
   }
 
-  try {
-    await applyAutoroles(member);
-  } catch (err) {
-    console.error('Autorole:', err.message);
-  }
+  if (!freeMode) {
+    try {
+      await applyAutoroles(member);
+    } catch (err) {
+      console.error('Autorole:', err.message);
+    }
 
-  try {
-    await onMemberJoinVerify(member);
-  } catch (err) {
-    console.error('Verify gate:', err.message);
+    try {
+      await onMemberJoinVerify(member);
+    } catch (err) {
+      console.error('Verify gate:', err.message);
+    }
   }
 
   try {
@@ -536,6 +567,8 @@ client.on('guildMemberAdd', async (member) => {
   } catch {
     /* ignore */
   }
+
+  if (freeMode) return;
 
   const cfg = loadGuild(member.guild.id);
   if (!cfg.welcome?.enabled || !cfg.welcome.channelId) return;
@@ -586,6 +619,12 @@ client.on('guildMemberRemove', async (member) => {
     await logMemberLeaveDetail(member);
   } catch {
     /* ignore */
+  }
+
+  try {
+    if (require('./src/utils/edition').isFreeEdition()) return;
+  } catch {
+    /* Pro path */
   }
 
   const cfg = loadGuild(member.guild.id);
@@ -646,12 +685,15 @@ client.on('messageCreate', async (message) => {
 
   const cfg = loadGuild(message.guild.id);
 
-  // Honeypot decoy channel — punish before other message handlers
+  // Honeypot decoy channel — punish before other message handlers (Pro only)
   try {
-    const { handleHoneypotMessage } = require('./src/features/honeypot');
-    const pot = await handleHoneypotMessage(message, client);
-    if (pot?.caught) return;
-    if (pot && pot.caught === false) return;
+    const { isFreeEdition } = require('./src/utils/edition');
+    if (!isFreeEdition()) {
+      const { handleHoneypotMessage } = require('./src/features/honeypot');
+      const pot = await handleHoneypotMessage(message, client);
+      if (pot?.caught) return;
+      if (pot && pot.caught === false) return;
+    }
   } catch (err) {
     console.error('Honeypot:', err.message);
   }
@@ -698,15 +740,27 @@ client.on('messageCreate', async (message) => {
   }
 
   await handleAfkMessage(message).catch(() => {});
-  await handleMessageXp(message).catch(() => {});
-  await maybeAutorespond(message).catch(() => {});
-  await refreshSticky(message).catch(() => {});
-
-  // AI channel build follow-up (purpose / details) — before command parse
   try {
-    const { handlePendingBuildReply } = require('./src/features/ai');
-    const handled = await handlePendingBuildReply(message);
-    if (handled) return;
+    const { isFreeEdition } = require('./src/utils/edition');
+    if (!isFreeEdition()) {
+      await handleMessageXp(message).catch(() => {});
+      await maybeAutorespond(message).catch(() => {});
+      await refreshSticky(message).catch(() => {});
+    }
+  } catch {
+    await handleMessageXp(message).catch(() => {});
+    await maybeAutorespond(message).catch(() => {});
+    await refreshSticky(message).catch(() => {});
+  }
+
+  // AI channel build follow-up (purpose / details) — before command parse (Pro only)
+  try {
+    const { isFreeEdition } = require('./src/utils/edition');
+    if (!isFreeEdition()) {
+      const { handlePendingBuildReply } = require('./src/features/ai');
+      const handled = await handlePendingBuildReply(message);
+      if (handled) return;
+    }
   } catch {
     /* ignore */
   }

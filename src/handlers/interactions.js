@@ -30,7 +30,7 @@ const {
   templateApplyComponents,
   panelComponents,
 } = require('../ui/components');
-const { helpEmbed, HELP_PAGES, createPanel } = require('../commands');
+const { helpEmbed, getHelpPages, createPanel } = require('../commands');
 const { THEMES } = require('../utils/theme');
 const { ticketCreateModal, postTicketPanel, openTicket, closeTicket, claimTicket } = require('../features/tickets');
 const { handleVerifyButton, setupVerify } = require('../features/verify');
@@ -118,6 +118,20 @@ async function handleButton(interaction) {
   const id = interaction.customId;
 
   if (id.startsWith('aibuild:')) {
+    const { isFreeEdition, loadConfig } = require('../utils/edition');
+    if (isFreeEdition()) {
+      const promo = loadConfig().promo || {};
+      return interaction.reply({
+        ephemeral: true,
+        embeds: [
+          require('../utils/embeds').errorEmbed(
+            interaction.guild.id,
+            'Ougi Free',
+            `AI channel build is Pro-only.\n\nDiscord: ${promo.discordInvite || '—'}\nBuy: ${promo.productUrl || '—'}`
+          ),
+        ],
+      });
+    }
     const { handleAiBuildButton } = require('../features/ai');
     return handleAiBuildButton(interaction);
   }
@@ -171,10 +185,11 @@ async function handleButton(interaction) {
     const dir = parts[1];
     const page = Number(parts[2]);
     const next = dir === 'next' ? page + 1 : page - 1;
-    if (next < 0 || next >= HELP_PAGES.length) return interaction.deferUpdate();
+    const pages = getHelpPages();
+    if (next < 0 || next >= pages.length) return interaction.deferUpdate();
     return interaction.update({
       embeds: [helpEmbed(interaction.guild.id, next)],
-      components: helpNav(next, HELP_PAGES.length, interaction.guild.id),
+      components: helpNav(next, pages.length, interaction.guild.id),
     });
   }
 
@@ -571,7 +586,7 @@ async function handleButton(interaction) {
   if (action === 'help') {
     return interaction.reply({
       embeds: [helpEmbed(interaction.guild.id, 0)],
-      components: helpNav(0, HELP_PAGES.length, interaction.guild.id),
+      components: helpNav(0, getHelpPages().length, interaction.guild.id),
       ephemeral: true,
     });
   }

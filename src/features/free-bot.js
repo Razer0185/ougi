@@ -408,14 +408,7 @@ async function maybeDailyPromo(guild) {
   const last = row.lastDailyPromoAt || 0;
   if (Date.now() - last < 24 * 60 * 60 * 1000) return;
 
-  const channel =
-    guild.systemChannel ||
-    guild.channels.cache.find(
-      (c) =>
-        (c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement) &&
-        c.viewable &&
-        c.permissionsFor(guild.members.me)?.has(PermissionFlagsBits.SendMessages)
-    );
+  const channel = findLeaveNoticeChannel(guild);
   if (!channel) return;
 
   // No @everyone / @here — mass pings get bots reported and kicked
@@ -449,14 +442,7 @@ async function onFreeGuildJoin(guild, client) {
   const row = trackGuild(guild);
   await ensurePromoEvent(guild);
   try {
-    const channel =
-      guild.systemChannel ||
-      guild.channels.cache.find(
-        (c) =>
-          (c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement) &&
-          c.viewable &&
-          c.permissionsFor(guild.members.me)?.has(PermissionFlagsBits.SendMessages)
-      );
+    const channel = findLeaveNoticeChannel(guild);
     if (channel) {
       const cfg = loadConfig();
       const leaveAt = row?.leaveAt || Date.now() + trialMs();
@@ -480,8 +466,8 @@ async function onFreeGuildJoin(guild, client) {
         saveGuilds(data);
       }
     }
-  } catch {
-    /* ignore */
+  } catch (err) {
+    console.warn(`Free join promo failed in ${guild.name}:`, err.message);
   }
   console.log(
     `Free bot: tracked ${guild.name} (${guild.id}) — leave at ${new Date(row.leaveAt).toISOString()}`

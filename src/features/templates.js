@@ -362,11 +362,19 @@ async function applyServerTemplate(guild, templateId, staffRoleId, options = {})
 
       if (ch.honeypot) {
         try {
-          const { bindTemplateChannel } = require('./honeypot');
-          await bindTemplateChannel(guild, channel, 'kick');
-          await channel
-            .setTopic('SECURITY HONEYPOT — do not type here. Spammers are removed automatically.')
-            .catch(() => {});
+          const { isFreeEdition } = require('../utils/edition');
+          // Free trial: keep the decoy channel look, but never arm honeypot punishment
+          if (isFreeEdition()) {
+            await channel
+              .setTopic('Pro feature preview — honeypot kick/ban is Ougi Pro only.')
+              .catch(() => {});
+          } else {
+            const { bindTemplateChannel } = require('./honeypot');
+            await bindTemplateChannel(guild, channel, 'kick');
+            await channel
+              .setTopic('SECURITY HONEYPOT — do not type here. Spammers are removed automatically.')
+              .catch(() => {});
+          }
         } catch (err) {
           console.error('template honeypot bind:', err.message);
         }

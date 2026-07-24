@@ -18,6 +18,8 @@ const {
   mainGuildId,
   isProtectedGuild,
   requestLeaveAll,
+  loadControl,
+  saveControl,
 } = require('../utils/edition');
 const {
   leaveAllFreeGuilds,
@@ -93,8 +95,13 @@ async function execute(message, args) {
         }),
       ],
     });
+    // Mark request + done so processControlQueue does not leave-all a second time
     requestLeaveAll(message.author.tag);
     const result = await leaveAllFreeGuilds(message.client, `manual by ${message.author.tag}`);
+    const control = loadControl();
+    control.leaveAllDoneAt = Date.now();
+    control.lastResult = result;
+    saveControl(control);
     return message.channel.send({
       embeds: [
         successEmbed(

@@ -134,14 +134,21 @@ function findLatestEndedGiveawayId(guildId, channelId) {
   return ended[0]?.messageId || null;
 }
 
+function getHelpPages() {
+  const { freeHelpPages } = require('../utils/edition');
+  return freeHelpPages(HELP_PAGES);
+}
+
 function helpEmbed(guildId, page) {
-  const p = HELP_PAGES[page];
+  const pages = getHelpPages();
+  const idx = Math.max(0, Math.min(Number(page) || 0, pages.length - 1));
+  const p = pages[idx] || pages[0];
   const { getGuildPrefix } = require('../utils/store');
   const prefix = getGuildPrefix(guildId);
   return baseEmbed(guildId, {
     title: `Help · ${p.title}`,
     description: `_Prefix: \`${prefix}\` · e.g. \`${prefix}ping\`_\n\n${p.body}`,
-    footer: `Page ${page + 1} of ${HELP_PAGES.length} • Use arrows to navigate`,
+    footer: `Page ${idx + 1} of ${pages.length} • Use arrows to navigate`,
   });
 }
 
@@ -387,7 +394,7 @@ const commands = {
     async execute(message) {
       await message.reply({
         embeds: [helpEmbed(message.guild.id, 0)],
-        components: helpNav(0, HELP_PAGES.length, message.guild.id),
+        components: helpNav(0, getHelpPages().length, message.guild.id),
       });
     },
   },
@@ -1980,7 +1987,7 @@ commands.ticketpanel.execute = async function ticketPanelExec(message, args) {
   });
 };
 
-module.exports = { commands, createPanel, helpEmbed, HELP_PAGES, runNuke };
+module.exports = { commands, createPanel, helpEmbed, getHelpPages, HELP_PAGES, runNuke };
 
 // Aliases
 commands.gstart = commands.giveaway;
