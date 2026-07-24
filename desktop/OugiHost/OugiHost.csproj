@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>OugiHost</AssemblyName>
+    <RootNamespace>OugiHostApp</RootNamespace>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <!-- Native WebView2Loader.dll must extract/load next to the exe -->
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <Version>1.4.0</Version>
+    <Product>Ougi Host</Product>
+    <Description>Ougi PC Host — sealed runtime, sign in and run your Discord bot locally</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
+  </ItemGroup>
+  <!-- Optional embed; customer packs prefer sidecar OugiHost.dat (smaller publish / easier updates) -->
+  <ItemGroup Condition="Exists('Resources\OugiRuntime.dat') AND '$(OugiEmbedRuntime)' == 'true'">
+    <EmbeddedResource Include="Resources\OugiRuntime.dat" LogicalName="Ougi.Runtime.dat" />
+  </ItemGroup>
+</Project>
