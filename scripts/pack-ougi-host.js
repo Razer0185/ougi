@@ -1,15 +1,15 @@
 'use strict';
 
 /**
- * Customer release — NO readable bot source in the download.
+ * Customer release — FULLY ENCRYPTED buyer folder.
  *
- *   release/OugiHost/
- *     OugiHost.exe
- *     OugiHost.dat          ← encrypted runtime + Node (opaque)
- *     WebView2Loader.dll
+ * Ship only:
+ *   Ougi/
+ *     OugiUnlock.exe   ← tiny unlocker (login required)
+ *     Ougi.sealed      ← AES-256-GCM of Host exe+dat+dll
  *     README.txt
  *
- * First launch unpacks into %LocalAppData%\Ougi\app
+ * Intermediate (not for buyers): release/OugiHost/ with plaintext binaries.
  *
  * Usage: npm run host-app:pack
  */
@@ -17,6 +17,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync, spawnSync } = require('child_process');
+const { sealBuyerPayload } = require('./seal-buyer-bundle');
 
 const ROOT = path.join(__dirname, '..');
 const OUT = path.join(ROOT, 'release', 'OugiHost');
@@ -40,12 +41,23 @@ function copyFile(src, dest) {
   fs.copyFileSync(src, dest);
 }
 
-function publishExe() {
+function publishHostExe() {
   log('Publishing self-contained OugiHost.exe…');
   const dist = path.join(ROOT, 'desktop', 'dist');
   rmrf(dist);
   execSync(
     `dotnet publish "${path.join(ROOT, 'desktop', 'OugiHost', 'OugiHost.csproj')}" -c Release -r win-x64 --self-contained true -o "${dist}"`,
+    { stdio: 'inherit', cwd: ROOT }
+  );
+  return dist;
+}
+
+function publishUnlockExe() {
+  log('Publishing self-contained OugiUnlock.exe…');
+  const dist = path.join(ROOT, 'desktop', 'dist-unlock');
+  rmrf(dist);
+  execSync(
+    `dotnet publish "${path.join(ROOT, 'desktop', 'OugiUnlock', 'OugiUnlock.csproj')}" -c Release -r win-x64 --self-contained true -o "${dist}"`,
     { stdio: 'inherit', cwd: ROOT }
   );
   return dist;
@@ -69,116 +81,49 @@ function findWebViewDll(dist) {
   return candidates.find((p) => fs.existsSync(p));
 }
 
-function writeReadme(outDir) {
+function writeBuyerReadme(outDir) {
   fs.writeFileSync(
     path.join(outDir, 'README.txt'),
     [
-      'Ougi Host (PC)',
-      '==============',
+      'Ougi Host (PC) — ENCRYPTED PACKAGE',
+      '=================================',
       '',
-      'This folder is named Ougi on purpose — keep these files together:',
-      '  OugiHost.exe',
-      '  OugiHost.dat        (sealed runtime — NOT readable source)',
-      '  WebView2Loader.dll',
+      'This folder is safe to send. It contains NO readable bot files.',
+      '',
+      '  OugiUnlock.exe   — unlock tool',
+      '  Ougi.sealed      — AES-256 encrypted Host (exe + runtime + dll)',
       '  README.txt',
       '',
       'How to run:',
-      '  1. Double-click OugiHost.exe',
-      '  2. Sign in / sign up',
-      '  3. Paste YOUR Discord bot token (from Discord Developer Portal)',
-      '  4. Start',
+      '  1. Double-click OugiUnlock.exe',
+      '  2. Sign in with your Ougi account (must have an active PC Host plan)',
+      '  3. It decrypts Ougi.sealed and starts Ougi Host',
+      '  4. Paste YOUR Discord bot token and Start',
       '',
-      'You do NOT need Node.js, GitHub, npm, or any bot source code.',
-      'Nothing in this folder is open source — the .dat file is sealed.',
-      'First launch unpacks a private runtime into:',
-      '  %LocalAppData%\\Ougi\\app',
-      '',
-      'Requirements: Windows 10/11 x64 + WebView2 (usually already installed).',
+      'Without an active paid PC Host subscription, unlock will fail.',
+      'Requirements: Windows 10/11 x64 + internet (to verify license).',
       '',
     ].join('\n'),
     'utf8'
   );
 }
 
-function assertBuyerClean(dir) {
-  const allowed = new Set([
-    'OugiHost.exe',
-    'OugiHost.dat',
-    'WebView2Loader.dll',
-    'README.txt',
-  ]);
+function assertEncryptedBuyer(dir) {
+  const allowed = new Set(['OugiUnlock.exe', 'Ougi.sealed', 'README.txt']);
   const names = fs.readdirSync(dir);
   const bad = names.filter((n) => !allowed.has(n));
-  if (bad.length) {
-    throw new Error(`Buyer folder leaked extra files: ${bad.join(', ')}`);
-  }
+  if (bad.length) throw new Error(`Buyer folder has plaintext extras: ${bad.join(', ')}`);
   for (const must of allowed) {
-    if (!fs.existsSync(path.join(dir, must))) {
-      throw new Error(`Buyer folder missing ${must}`);
-    }
+    if (!fs.existsSync(path.join(dir, must))) throw new Error(`Buyer folder missing ${must}`);
   }
-  // Hard fail if any source-looking dirs slipped in
-  for (const leak of ['src', 'website', 'agent', 'host', 'node_modules', 'index.js']) {
+  for (const leak of ['OugiHost.exe', 'OugiHost.dat', 'WebView2Loader.dll', 'src', 'index.js']) {
     if (fs.existsSync(path.join(dir, leak))) {
-      throw new Error(`Buyer folder must not contain ${leak}`);
+      throw new Error(`Buyer folder must not contain plaintext ${leak}`);
     }
   }
 }
 
-async function main() {
-  log('Sealing runtime (encrypted, no plain source in download)…');
-  execSync(`node "${path.join(ROOT, 'scripts', 'seal-runtime.js')}"`, {
-    stdio: 'inherit',
-    cwd: ROOT,
-  });
-  if (!fs.existsSync(DAT)) throw new Error('Seal failed — missing OugiRuntime.dat');
-
-  const dist = publishExe();
-  const dll = findWebViewDll(dist);
-  if (!dll) throw new Error('WebView2Loader.dll missing');
-
-  log(`Assembling ${OUT}`);
-  rmrf(OUT);
-  mkdir(OUT);
-  copyFile(path.join(dist, 'OugiHost.exe'), path.join(OUT, 'OugiHost.exe'));
-  copyFile(DAT, path.join(OUT, 'OugiHost.dat'));
-  copyFile(dll, path.join(OUT, 'WebView2Loader.dll'));
-  writeReadme(OUT);
-
-  const zipPath = path.join(ROOT, 'release', 'OugiHost-win-x64.zip');
-  rmrf(zipPath);
-  const zip = spawnSync(
-    'powershell',
-    [
-      '-NoProfile',
-      '-Command',
-      `Compress-Archive -Path '${OUT.replace(/'/g, "''")}\\*' -DestinationPath '${zipPath.replace(/'/g, "''")}' -Force`,
-    ],
-    { stdio: 'inherit' }
-  );
-  if (zip.status === 0) log(`Zip: ${zipPath}`);
-  else log('Zip failed — folder is still ready at release/OugiHost');
-
-  try {
-    copyFile(path.join(OUT, 'OugiHost.exe'), path.join(ROOT, 'OugiHost.exe'));
-    copyFile(path.join(OUT, 'WebView2Loader.dll'), path.join(ROOT, 'WebView2Loader.dll'));
-    copyFile(path.join(OUT, 'OugiHost.dat'), path.join(ROOT, 'OugiHost.dat'));
-  } catch {
-    /* exe locked */
-  }
-
-  const buyerDir = path.join(ROOT, 'Ougi');
-  log(`Also writing buyer folder ${buyerDir}`);
-  rmrf(buyerDir);
-  mkdir(buyerDir);
-  copyFile(path.join(OUT, 'OugiHost.exe'), path.join(buyerDir, 'OugiHost.exe'));
-  copyFile(path.join(OUT, 'OugiHost.dat'), path.join(buyerDir, 'OugiHost.dat'));
-  copyFile(path.join(OUT, 'WebView2Loader.dll'), path.join(buyerDir, 'WebView2Loader.dll'));
-  writeReadme(buyerDir);
-  assertBuyerClean(buyerDir);
-  assertBuyerClean(OUT);
-
-  // Don't leave a real pack passphrase in the repo tree
+function restoreDevSealSecrets() {
   try {
     fs.writeFileSync(
       path.join(ROOT, 'desktop', 'OugiHost', 'SealSecrets.cs'),
@@ -197,10 +142,63 @@ namespace OugiHostApp
   } catch {
     /* ignore */
   }
+}
 
-  log('Done. Ship the Ougi\\ folder (or release/OugiHost-win-x64.zip)');
-  log('Contents: exe + OugiHost.dat + WebView2Loader.dll (no source folders).');
-  log('Note: each pack uses a unique seal key — old .dat files need matching exe builds.');
+async function main() {
+  log('Sealing inner runtime (OugiHost.dat)…');
+  execSync(`node "${path.join(ROOT, 'scripts', 'seal-runtime.js')}"`, {
+    stdio: 'inherit',
+    cwd: ROOT,
+  });
+  if (!fs.existsSync(DAT)) throw new Error('Seal failed — missing OugiRuntime.dat');
+
+  const hostDist = publishHostExe();
+  const dll = findWebViewDll(hostDist);
+  if (!dll) throw new Error('WebView2Loader.dll missing');
+
+  log(`Assembling intermediate ${OUT}`);
+  rmrf(OUT);
+  mkdir(OUT);
+  copyFile(path.join(hostDist, 'OugiHost.exe'), path.join(OUT, 'OugiHost.exe'));
+  copyFile(DAT, path.join(OUT, 'OugiHost.dat'));
+  copyFile(dll, path.join(OUT, 'WebView2Loader.dll'));
+
+  const version = fs.existsSync(path.join(RESOURCES, 'RuntimeVersion.txt'))
+    ? fs.readFileSync(path.join(RESOURCES, 'RuntimeVersion.txt'), 'utf8').trim()
+    : `pkg-${Date.now()}`;
+
+  const buyerDir = path.join(ROOT, 'Ougi');
+  log(`Building encrypted buyer folder ${buyerDir}`);
+  rmrf(buyerDir);
+  mkdir(buyerDir);
+
+  const sealedPath = path.join(buyerDir, 'Ougi.sealed');
+  sealBuyerPayload(OUT, sealedPath, version);
+
+  const unlockDist = publishUnlockExe();
+  copyFile(path.join(unlockDist, 'OugiUnlock.exe'), path.join(buyerDir, 'OugiUnlock.exe'));
+  writeBuyerReadme(buyerDir);
+  assertEncryptedBuyer(buyerDir);
+
+  // Encrypted zip for emailing
+  const zipPath = path.join(ROOT, 'release', 'Ougi-encrypted-win-x64.zip');
+  rmrf(zipPath);
+  const zip = spawnSync(
+    'powershell',
+    [
+      '-NoProfile',
+      '-Command',
+      `Compress-Archive -Path '${buyerDir.replace(/'/g, "''")}\\*' -DestinationPath '${zipPath.replace(/'/g, "''")}' -Force`,
+    ],
+    { stdio: 'inherit' }
+  );
+  if (zip.status === 0) log(`Zip: ${zipPath}`);
+
+  restoreDevSealSecrets();
+
+  log('Done. SEND THIS FOLDER: Ougi\\');
+  log('  OugiUnlock.exe + Ougi.sealed + README.txt  (no plaintext Host files)');
+  log('IMPORTANT: set Railway OUGI_PC_PACKAGE_KEY from release\\CURRENT_PACKAGE_KEY.txt');
 }
 
 main().catch((err) => {

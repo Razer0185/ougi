@@ -780,6 +780,52 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    // Desktop unlocker: email+password → AES key for Ougi.sealed (PC plan required)
+    if (req.method === 'POST' && pathname === '/api/license/pc-unlock-package') {
+      const rl = sec.rateLimit(`pcunlock:${ip}`, { limit: 8, windowMs: 15 * 60_000 });
+      if (!rl.ok) return sendJson(res, 429, { ok: false, message: 'Too many requests' }, req);
+      const body = await sec.readBodyLimited(req);
+      const user = await users.verifyLogin(body.email, body.password);
+      if (!user) {
+        await new Promise((r) => setTimeout(r, 400));
+        sec.logSecure('pc_unlock_fail', { ip, result: 'bad_login' });
+        return sendJson(res, 401, { ok: false, message: 'Invalid email or password' }, req);
+      }
+      const license = require('../src/utils/license');
+      try {
+        license.assertPcEntitlement(user.id);
+      } catch (err) {
+        sec.logSecure('pc_unlock_fail', { ip, userId: user.id, result: 'no_pc_plan' });
+        return sendJson(res, err.statusCode || 402, { ok: false, message: err.message }, req);
+      }
+      const pkg = require('../src/utils/package-seal');
+      const resolved = pkg.resolvePackageKey(body.version);
+      if (!resolved) {
+        return sendJson(
+          res,
+          503,
+          {
+            ok: false,
+            message:
+              'Package key not configured on server. Seller must set OUGI_PC_PACKAGE_KEY after packing.',
+          },
+          req
+        );
+      }
+      sec.logSecure('pc_unlock_ok', { ip, userId: user.id, result: 'ok' });
+      return sendJson(
+        res,
+        200,
+        {
+          ok: true,
+          key: resolved.key.toString('base64'),
+          version: resolved.version,
+          algorithm: 'OGB1',
+        },
+        req
+      );
+    }
+
     // App auth helpers (same cookie session as website)
     if (req.method === 'POST' && pathname === '/api/app/login') {
       requireOrigin(req, res);

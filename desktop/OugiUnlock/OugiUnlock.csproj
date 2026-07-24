@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>OugiUnlock</AssemblyName>
+    <RootNamespace>OugiUnlock</RootNamespace>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <Version>1.0.0</Version>
+    <Product>Ougi Unlock</Product>
+    <Description>Decrypts the sealed Ougi Host package after PC Host license login</Description>
+  </PropertyGroup>
+</Project>

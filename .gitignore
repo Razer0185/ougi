@@ -27,6 +27,7 @@ paypal-api.txt
 /OugiHost.exe.WebView2/
 /release/
 /desktop/dist/
+/desktop/dist-unlock/
 /desktop/.cache/
 /desktop/OugiHost/bin/
 /desktop/OugiHost/obj/

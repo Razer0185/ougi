@@ -24,6 +24,7 @@ const KEYS = [
   'YOU_API_KEY',
   'GEMINI_API_KEY',
   'GOOGLE_AI_API_KEY',
+  'OUGI_PC_PACKAGE_KEY',
   'OUGI_SITE_ORIGIN',
   'OUGI_DISCORD_INVITE',
   'OUGI_CHAT_SECRET',
@@ -114,6 +115,19 @@ function main() {
   if (youKey) env.YDC_API_KEY = youKey;
   const gemKey = resolveGeminiApiKey(env);
   if (gemKey) env.GEMINI_API_KEY = gemKey;
+
+  // Prefer release/CURRENT_PACKAGE_KEY.txt from latest pack
+  if (!env.OUGI_PC_PACKAGE_KEY) {
+    const keyFile = path.join(ROOT, 'release', 'CURRENT_PACKAGE_KEY.txt');
+    if (fs.existsSync(keyFile)) {
+      const line = fs
+        .readFileSync(keyFile, 'utf8')
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .find((l) => l && !l.startsWith('#'));
+      if (line) env.OUGI_PC_PACKAGE_KEY = line;
+    }
+  }
 
   const toSet = [];
   for (const key of KEYS) {
