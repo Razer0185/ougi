@@ -29,13 +29,16 @@
 
     const hint = document.getElementById('hHint');
     if (!sub) {
-      hint.textContent = 'No paid plan yet. Checkout first, then come back here to Activate.';
+      hint.textContent =
+        'No paid plan yet. Checkout first, then Activate hosting here (we host — no source download).';
     } else if (sub.status === 'expired') {
-      hint.textContent = 'Expired — renew on Checkout, then Activate again.';
+      hint.textContent = 'Expired — renew on Checkout, then Activate again. Access ends when the month ends.';
     } else if (sub.status === 'pending_activate') {
-      hint.textContent = 'Paid and ready. Enter your server ID and click Activate hosting.';
+      hint.textContent =
+        'Paid and ready. Enter your Discord server ID and click Activate hosting — then invite our bot.';
     } else if (sub.active) {
-      hint.textContent = 'Hosting active. Invite the bot below if it is not in your server yet.';
+      hint.textContent =
+        'Hosting active on this server. Invite the bot below if needed. Deactivate unbinds and we leave.';
     } else {
       hint.textContent = '';
     }

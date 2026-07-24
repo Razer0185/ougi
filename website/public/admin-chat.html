@@ -42,6 +42,24 @@
           <input id="adminInput" maxlength="1000" placeholder="Reply…" autocomplete="off" />
           <button class="btn primary tiny" type="button" id="adminSend">Send</button>
         </div>
+        <div id="threadGrantBar" class="block" style="margin:10px;border-width:1px" hidden>
+          <p class="note" id="threadGrantHint" style="margin:0 0 8px">
+            Gift card / crypto / manual: confirm payment, then activate their plan (no source download — Host page).
+          </p>
+          <label class="field">Plan
+            <select id="threadGrantPlan">
+              <option value="starter">Hosted Monthly</option>
+              <option value="lifetime">Hosted Lifetime</option>
+              <option value="pc">License Monthly (PC)</option>
+              <option value="pc-lifetime">License Lifetime (PC)</option>
+            </select>
+          </label>
+          <label class="field">Buyer email <span class="opt">(if thread has no account link)</span>
+            <input id="threadGrantEmail" type="email" maxlength="120" autocomplete="off" placeholder="buyer@email.com" />
+          </label>
+          <button class="btn tiny primary" type="button" id="threadGrantBtn">Confirm payment &amp; activate plan</button>
+          <p class="status" id="threadGrantMsg"></p>
+        </div>
         <details class="block" style="margin:10px;border-width:1px" open>
           <summary><strong>PayPal claims</strong> (match sender email)</summary>
           <p class="note" id="paypalApiHint" style="margin-top:8px"></p>

@@ -234,6 +234,7 @@ function deactivateForUser(userId) {
     } catch {
       /* ignore */
     }
+    queueGuildLeave(guildId, `deactivate:${id}`);
   }
   sub.guildId = null;
   sub.status = 'pending_activate';
@@ -241,6 +242,50 @@ function deactivateForUser(userId) {
   data.byUser[id] = sub;
   save(data);
   return publicSub(sub);
+}
+
+const LEAVES_PATH = dataFile('pending-leaves.json');
+
+function loadLeaves() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(LEAVES_PATH, 'utf8'));
+    return Array.isArray(raw?.guildIds) ? raw.guildIds.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLeaves(guildIds) {
+  const dir = path.dirname(LEAVES_PATH);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(
+    LEAVES_PATH,
+    JSON.stringify({ guildIds: [...new Set(guildIds.map(String))], updatedAt: Date.now() }, null, 2),
+    { mode: 0o600 }
+  );
+}
+
+/** Ask the running bot to leave a guild (picked up by the subscription sweep). */
+function queueGuildLeave(guildId, reason = '') {
+  const id = String(guildId || '').trim();
+  if (!/^\d{17,20}$/.test(id)) return;
+  const list = loadLeaves();
+  if (!list.includes(id)) list.push(id);
+  saveLeaves(list);
+  if (reason) {
+    try {
+      console.log(`[subs] queued leave ${id} (${reason})`);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+/** Drain leave queue for the Discord bot process. */
+function takePendingLeaves() {
+  const list = loadLeaves();
+  saveLeaves([]);
+  return list;
 }
 
 /**
@@ -266,12 +311,17 @@ function revokeExpired() {
       } catch {
         /* ignore */
       }
+      queueGuildLeave(gid, `expired:${uid}`);
     }
     data.byUser[uid] = sub;
   }
-  if (revoked.length) save(data);
-  else save(data);
+  save(data);
   return revoked;
+}
+
+/** Alias used by payment renewals — extends/creates the same way as first purchase. */
+function renewSubscription(opts) {
+  return grantFromPayment(opts);
 }
 
 /** Staff / gift-crypto: grant by email if account exists, else store pending by email key. */
@@ -361,10 +411,13 @@ module.exports = {
   publicSub,
   isGuildSubscriptionActive,
   grantFromPayment,
+  renewSubscription,
   grantFromStaff,
   activateForUser,
   deactivateForUser,
   revokeExpired,
+  queueGuildLeave,
+  takePendingLeaves,
   buildSubscriberInviteUrl,
   inviteClientId,
   isLifetimePlan,

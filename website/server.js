@@ -514,6 +514,151 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { ok: true, subscription }, req);
     }
 
+    // Plan aliases (/api/me/* → same hosted seat APIs)
+    if (req.method === 'GET' && pathname === '/api/me/subscription') {
+      const auth = users.requireUser(req);
+      const subs = require('../src/utils/subscriptions');
+      const sub = subs.publicSub(subs.getByUser(auth.user.id));
+      const csrf = sec.issueCsrf(auth.session.id);
+      const inviteUrl =
+        sub && (sub.status === 'active' || sub.status === 'pending_activate')
+          ? subs.buildSubscriberInviteUrl()
+          : null;
+      return sendJson(res, 200, { ok: true, csrf, subscription: sub, inviteUrl }, req);
+    }
+    if (req.method === 'POST' && pathname === '/api/me/activate') {
+      requireOrigin(req, res);
+      const auth = users.requireUser(req);
+      const rl = sec.rateLimit(`meact:${ip}`, { limit: 10, windowMs: 15 * 60_000 });
+      if (!rl.ok) return sendJson(res, 429, { ok: false, message: 'Too many requests' }, req);
+      const body = await sec.readBodyLimited(req);
+      if (!sec.validateCsrf(body.csrf || req.headers['x-csrf-token'], auth.session.id)) {
+        return sendJson(res, 403, { ok: false, message: 'Forbidden' }, req);
+      }
+      const subs = require('../src/utils/subscriptions');
+      const subscription = subs.activateForUser(auth.user.id, body.guildId);
+      return sendJson(res, 200, { ok: true, subscription, inviteUrl: subs.buildSubscriberInviteUrl() }, req);
+    }
+    if (req.method === 'POST' && pathname === '/api/me/deactivate') {
+      requireOrigin(req, res);
+      const auth = users.requireUser(req);
+      const rl = sec.rateLimit(`medeact:${ip}`, { limit: 10, windowMs: 15 * 60_000 });
+      if (!rl.ok) return sendJson(res, 429, { ok: false, message: 'Too many requests' }, req);
+      const body = await sec.readBodyLimited(req);
+      if (!sec.validateCsrf(body.csrf || req.headers['x-csrf-token'], auth.session.id)) {
+        return sendJson(res, 403, { ok: false, message: 'Forbidden' }, req);
+      }
+      const subs = require('../src/utils/subscriptions');
+      const subscription = subs.deactivateForUser(auth.user.id);
+      return sendJson(res, 200, { ok: true, subscription }, req);
+    }
+
+    // Staff: grant / renew hosted seat after gift card or crypto confirmation
+    if (req.method === 'POST' && pathname === '/api/staff/grant-subscription') {
+      requireOrigin(req, res);
+      const session = sec.getAdminSession(req);
+      if (!session) return sendJson(res, 401, { ok: false, message: 'Unauthorized' }, req);
+      const rl = sec.rateLimit(`staffgrant:${ip}`, { limit: 30, windowMs: 15 * 60_000 });
+      if (!rl.ok) return sendJson(res, 429, { ok: false, message: 'Too many requests' }, req);
+      const body = await sec.readBodyLimited(req);
+      if (!sec.validateCsrf(body.csrf || req.headers['x-csrf-token'], session.id)) {
+        return sendJson(res, 403, { ok: false, message: 'Forbidden' }, req);
+      }
+      const planId = String(body.planId || 'starter').toLowerCase();
+      const allowed = ['starter', 'pc', 'lifetime', 'pc-lifetime'];
+      if (!allowed.includes(planId)) {
+        return sendJson(res, 400, { ok: false, message: 'Invalid planId' }, req);
+      }
+      const subs = require('../src/utils/subscriptions');
+      try {
+        const subscription = subs.grantFromStaff({
+          userId: body.userId || null,
+          email: body.email || null,
+          planId,
+          planName: body.planName || null,
+          orderId: body.orderId || `STAFF-${Date.now()}`,
+        });
+        sec.logSecure('staff_grant_sub', {
+          ip,
+          userId: session.staffId || session.staffEmail,
+          result: 'ok',
+          planId,
+        });
+        return sendJson(res, 200, { ok: true, subscription }, req);
+      } catch (err) {
+        sec.logSecure('staff_grant_sub', { ip, result: 'fail' });
+        return sendJson(res, err.statusCode || 400, { ok: false, message: err.message }, req);
+      }
+    }
+
+    if (
+      req.method === 'POST' &&
+      pathname.startsWith('/api/chat/admin/thread/') &&
+      pathname.endsWith('/activate-order')
+    ) {
+      requireOrigin(req, res);
+      const session = sec.getAdminSession(req);
+      if (!session) return sendJson(res, 401, { ok: false, message: 'Unauthorized' }, req);
+      const rl = sec.rateLimit(`thactivate:${ip}`, { limit: 30, windowMs: 15 * 60_000 });
+      if (!rl.ok) return sendJson(res, 429, { ok: false, message: 'Too many requests' }, req);
+      const id = pathname.split('/')[5];
+      if (!sec.isValidThreadId(id)) return sendJson(res, 400, { ok: false, message: 'Bad request' }, req);
+      const body = await sec.readBodyLimited(req);
+      if (!sec.validateCsrf(body.csrf || req.headers['x-csrf-token'], session.id)) {
+        return sendJson(res, 403, { ok: false, message: 'Forbidden' }, req);
+      }
+      const thread = chat.getThread(id);
+      if (!thread) return sendJson(res, 404, { ok: false, message: 'Thread not found' }, req);
+      if (!thread.userId && !body.userId && !body.email) {
+        return sendJson(
+          res,
+          400,
+          {
+            ok: false,
+            message: 'Thread has no linked buyer account. Enter their signup email, then try again.',
+          },
+          req
+        );
+      }
+      const planId = String(body.planId || thread.order?.planId || 'starter').toLowerCase();
+      const allowed = ['starter', 'pc', 'lifetime', 'pc-lifetime'];
+      if (!allowed.includes(planId)) {
+        return sendJson(res, 400, { ok: false, message: 'Invalid planId' }, req);
+      }
+      const subs = require('../src/utils/subscriptions');
+      try {
+        const subscription = subs.grantFromStaff({
+          userId: thread.userId || body.userId || null,
+          email: body.email || null,
+          planId,
+          planName: body.planName || thread.order?.planName || null,
+          orderId: thread.order?.orderId || body.orderId || `CHAT-${id}`,
+        });
+        chat.addMessage(id, {
+          from: 'staff',
+          name: session.staffName || 'Staff',
+          text:
+            `Payment confirmed — ${subscription.planName || planId} is active on your account. ` +
+            `Open Host, enter your Discord server ID, click Activate hosting, then invite the bot. ` +
+            `You never download source; we host Ougi for you.`,
+        });
+        sec.logSecure('staff_thread_activate', {
+          ip,
+          threadId: id,
+          userId: session.staffId || session.staffEmail,
+          result: 'ok',
+        });
+        return sendJson(
+          res,
+          200,
+          { ok: true, subscription, thread: sec.safePublicThread(chat.getThread(id)) },
+          req
+        );
+      } catch (err) {
+        return sendJson(res, err.statusCode || 400, { ok: false, message: err.message }, req);
+      }
+    }
+
     // ---- Bot configure dashboard (guild settings) ----
     if (req.method === 'GET' && pathname === '/api/dashboard/config') {
       const auth = users.requireUser(req);

@@ -84,8 +84,67 @@
     activeId = id;
     const json = await api(`/api/chat/thread/${encodeURIComponent(id)}`);
     renderMessages(json.thread);
+    updateThreadGrantBar(json.thread);
     await refreshList();
   }
+
+  function updateThreadGrantBar(thread) {
+    const bar = document.getElementById('threadGrantBar');
+    const hint = document.getElementById('threadGrantHint');
+    const planSel = document.getElementById('threadGrantPlan');
+    if (!bar) return;
+    if (!thread) {
+      bar.hidden = true;
+      return;
+    }
+    bar.hidden = false;
+    const method = String(thread.order?.method || '').toLowerCase();
+    const isManualPay =
+      method.includes('gift') || method.includes('crypto') || method.includes('card') || !thread.order;
+    if (hint) {
+      hint.textContent = thread.order
+        ? `Order: ${thread.order.planName || thread.order.planId || '—'} · ${thread.order.method || '—'} · $${thread.order.amount ?? '—'} — after you verify gift/crypto payment, activate their seat.`
+        : 'No order on this thread. Pick a plan and activate if you confirmed payment another way.';
+    }
+    if (planSel && thread.order?.planId) {
+      const id = String(thread.order.planId);
+      if ([...planSel.options].some((o) => o.value === id)) planSel.value = id;
+    }
+    bar.dataset.manual = isManualPay ? '1' : '0';
+  }
+
+  document.getElementById('threadGrantBtn')?.addEventListener('click', async () => {
+    const msg = document.getElementById('threadGrantMsg');
+    if (!activeId) {
+      if (msg) {
+        msg.className = 'status show err';
+        msg.textContent = 'Open a chat first.';
+      }
+      return;
+    }
+    if (msg) {
+      msg.className = 'status show';
+      msg.textContent = 'Activating…';
+    }
+    try {
+      const planId = document.getElementById('threadGrantPlan')?.value || 'starter';
+      const email = document.getElementById('threadGrantEmail')?.value.trim() || '';
+      const json = await api(`/api/chat/admin/thread/${encodeURIComponent(activeId)}/activate-order`, {
+        method: 'POST',
+        body: JSON.stringify({ csrf, planId, email: email || undefined }),
+      });
+      if (msg) {
+        msg.className = 'status show ok';
+        msg.textContent = `Granted ${json.subscription?.planName || planId}. Buyer should open Host → Activate.`;
+      }
+      if (json.thread) renderMessages(json.thread);
+    } catch (err) {
+      if (msg) {
+        msg.className = 'status show err';
+        msg.textContent = err.message || 'Grant failed';
+      }
+    }
+  });
 
   async function enterInbox() {
     document.getElementById('loginGate').hidden = true;

@@ -261,21 +261,29 @@ client.once('clientReady', async () => {
     console.warn('Could not write bot-client-id.txt:', err.message);
   }
 
-  // Expire unpaid / past-due hosted seats
+  // Expire unpaid / past-due hosted seats; leave deactivated/expired guilds
   try {
-    const { revokeExpired } = require('./src/utils/subscriptions');
+    const { revokeExpired, takePendingLeaves } = require('./src/utils/subscriptions');
+
+    async function leaveGuildIds(ids, reason) {
+      for (const gid of ids || []) {
+        const g = client.guilds.cache.get(gid);
+        if (!g) continue;
+        console.warn(`Leaving ${reason} server: ${g.name} (${gid})`);
+        await g.leave().catch(() => {});
+      }
+    }
+
     const revoked = revokeExpired();
     if (revoked.length) console.log(`Revoked ${revoked.length} expired subscription(s)`);
+    await leaveGuildIds(revoked, 'expired');
+    await leaveGuildIds(takePendingLeaves(), 'deactivated');
+
     setInterval(() => {
       try {
         const gone = revokeExpired();
-        for (const gid of gone) {
-          const g = client.guilds.cache.get(gid);
-          if (g) {
-            console.warn(`Leaving expired server: ${g.name} (${gid})`);
-            g.leave().catch(() => {});
-          }
-        }
+        leaveGuildIds(gone, 'expired').catch(() => {});
+        leaveGuildIds(takePendingLeaves(), 'deactivated').catch(() => {});
       } catch (err) {
         console.error('Subscription sweep failed:', err.message);
       }
