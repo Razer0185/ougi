@@ -9,7 +9,7 @@
  *     WebView2Loader.dll
  *     README.txt
  *
- * First launch unpacks into %LocalAppData%\OugiPC\app
+ * First launch unpacks into %LocalAppData%\Ougi\app
  *
  * Usage: npm run host-app:pack
  */
@@ -76,22 +76,53 @@ function writeReadme(outDir) {
       'Ougi Host (PC)',
       '==============',
       '',
-      '1. Keep everything in this Ougi folder together.',
-      '2. Double-click OugiHost.exe',
-      '3. Sign in / sign up, paste your Discord bot token, Start',
+      'This folder is named Ougi on purpose — keep these files together:',
+      '  OugiHost.exe',
+      '  OugiHost.dat        (sealed runtime — NOT readable source)',
+      '  WebView2Loader.dll',
+      '  README.txt',
       '',
-      'Files:',
-      '  OugiHost.exe        — the app',
-      '  OugiHost.dat        — sealed runtime (not source)',
-      '  WebView2Loader.dll  — required next to the exe',
+      'How to run:',
+      '  1. Double-click OugiHost.exe',
+      '  2. Sign in / sign up',
+      '  3. Paste YOUR Discord bot token (from Discord Developer Portal)',
+      '  4. Start',
       '',
-      'You do NOT need Node.js, .NET, GitHub, or any bot source.',
-      'First launch unpacks once into AppData.',
+      'You do NOT need Node.js, GitHub, npm, or any bot source code.',
+      'Nothing in this folder is open source — the .dat file is sealed.',
+      'First launch unpacks a private runtime into:',
+      '  %LocalAppData%\\Ougi\\app',
+      '',
       'Requirements: Windows 10/11 x64 + WebView2 (usually already installed).',
       '',
     ].join('\n'),
     'utf8'
   );
+}
+
+function assertBuyerClean(dir) {
+  const allowed = new Set([
+    'OugiHost.exe',
+    'OugiHost.dat',
+    'WebView2Loader.dll',
+    'README.txt',
+  ]);
+  const names = fs.readdirSync(dir);
+  const bad = names.filter((n) => !allowed.has(n));
+  if (bad.length) {
+    throw new Error(`Buyer folder leaked extra files: ${bad.join(', ')}`);
+  }
+  for (const must of allowed) {
+    if (!fs.existsSync(path.join(dir, must))) {
+      throw new Error(`Buyer folder missing ${must}`);
+    }
+  }
+  // Hard fail if any source-looking dirs slipped in
+  for (const leak of ['src', 'website', 'agent', 'host', 'node_modules', 'index.js']) {
+    if (fs.existsSync(path.join(dir, leak))) {
+      throw new Error(`Buyer folder must not contain ${leak}`);
+    }
+  }
 }
 
 async function main() {
@@ -144,6 +175,8 @@ async function main() {
   copyFile(path.join(OUT, 'OugiHost.dat'), path.join(buyerDir, 'OugiHost.dat'));
   copyFile(path.join(OUT, 'WebView2Loader.dll'), path.join(buyerDir, 'WebView2Loader.dll'));
   writeReadme(buyerDir);
+  assertBuyerClean(buyerDir);
+  assertBuyerClean(OUT);
 
   log('Done. Ship the Ougi\\ folder (or release/OugiHost-win-x64.zip)');
   log('Contents: exe + OugiHost.dat + WebView2Loader.dll (no source folders).');

@@ -34,3 +34,4 @@ paypal-api.txt
 /desktop/OugiHost/Resources/RuntimeVersion.txt
 /host/data/
 /agent/
+!/agent/pc-entry.js

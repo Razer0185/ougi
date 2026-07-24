@@ -3,7 +3,7 @@
 /**
  * Build an encrypted sealed runtime blob for OugiHost.exe.
  * Buyers never get a readable runtime/ or node_modules folder in the download —
- * the Host extracts into %LocalAppData%\OugiPC\app on first launch.
+ * the Host extracts into %LocalAppData%\Ougi\app on first launch.
  *
  * Output:
  *   desktop/OugiHost/Resources/OugiRuntime.dat
@@ -36,12 +36,16 @@ const SKIP_NAMES = new Set([
   'data',
   'desktop',
   'release',
+  'Ougi',
   'token.txt',
+  'token-free.txt',
   '.env',
   'paypal-api.txt',
   'you-api-key.txt',
   'YDC_API_KEY.txt',
   'ydc-api-key.txt',
+  'gemini-api-key.txt',
+  'GOOGLE_AI_API_KEY.txt',
 ]);
 
 function log(msg) {
@@ -146,6 +150,19 @@ function stageRuntime(nodeDir, version) {
   for (const f of COPY_FILES) {
     copyFile(path.join(ROOT, f), path.join(runtimeDir, f));
   }
+  // Buyer-facing package identity (no "nexus-bot" in their tree)
+  try {
+    const pkgPath = path.join(runtimeDir, 'package.json');
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+    pkg.name = 'ougi';
+    pkg.description = 'Ougi Discord bot (sealed PC Host runtime)';
+    delete pkg.repository;
+    delete pkg.bugs;
+    delete pkg.homepage;
+    fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf8');
+  } catch (err) {
+    console.warn('[seal] package.json rewrite skipped:', err.message);
+  }
   for (const d of COPY_DIRS) {
     const src = path.join(ROOT, d);
     if (fs.existsSync(src)) copyDirFiltered(src, path.join(runtimeDir, d));
@@ -159,7 +176,7 @@ function stageRuntime(nodeDir, version) {
   mkdir(path.join(runtimeDir, 'data'));
   fs.writeFileSync(
     path.join(runtimeDir, 'data', 'README.txt'),
-    'Writable data lives in %LocalAppData%\\OugiPC\\data\n',
+    'Writable data lives in %LocalAppData%\\Ougi\\data\n',
     'utf8'
   );
 

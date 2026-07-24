@@ -82,7 +82,14 @@ function isBotRunning() {
         'wmic process where "name=\'node.exe\'" get ProcessId,CommandLine /FORMAT:CSV',
         { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true }
       );
-      return out.includes('index.js') && out.toLowerCase().includes('nexus-bot');
+      return (
+        out.includes('index.js') &&
+        (out.toLowerCase().includes('nexus-bot') ||
+          out.toLowerCase().includes('\\ougi\\') ||
+          out.toLowerCase().includes('/ougi/') ||
+          out.toLowerCase().includes('ougipc') ||
+          out.toLowerCase().includes('pc-entry.js'))
+      );
     }
   } catch {
     /* ignore */
@@ -100,9 +107,14 @@ function findExternalBotPids() {
     );
     for (const line of out.split(/\r?\n/)) {
       if (!/index\.js/i.test(line)) continue;
-      if (!/nexus-bot/i.test(line) && !line.includes(ROOT.replace(/\\/g, '\\\\'))) {
-        // still accept any index.js in this folder path
-        if (!line.includes(ROOT) && !line.includes('nexus-bot')) continue;
+      if (
+        !/nexus-bot/i.test(line) &&
+        !/\\ougi\\|\/ougi\//i.test(line) &&
+        !/ougipc/i.test(line) &&
+        !/pc-entry\.js/i.test(line) &&
+        !line.includes(ROOT.replace(/\\/g, '\\\\'))
+      ) {
+        if (!line.includes(ROOT) && !line.includes('nexus-bot') && !/ougi/i.test(line)) continue;
       }
       const parts = line.split(',');
       const pid = Number(parts[parts.length - 1]);
