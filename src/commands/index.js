@@ -158,19 +158,45 @@ function isPanelCategoryName(name) {
 }
 
 function isPanelChannelName(name) {
-  const n = String(name || '').toLowerCase().trim();
-  return (
-    n === PANEL_CHANNEL_NAME.toLowerCase() ||
-    n === '✨・ougi' ||
-    n === '✨｜ougi' ||
-    n === '✨-ougi' ||
-    /^✨[・｜|\-]?ougi$/i.test(name) ||
-    /^✨[・｜|\-]?(example|nexus)$/i.test(name) ||
-    n === 'ougi' ||
-    n === 'example' ||
-    n.includes('control panel') ||
-    n.includes('control-panel')
-  );
+  const n = String(name || '')
+    .toLowerCase()
+    .normalize('NFKC')
+    .replace(/[\u200b-\u200d\ufe0f]/g, '')
+    .trim();
+  // ✨・ougi / ✨｜ougi / ✨-ougi / ✨ · ougi / ✨ ★ ougi / etc.
+  if (/^✨\s*[・｜|\-★*]?\s*(ougi|example|nexus)\s*$/i.test(n)) return true;
+  if (/^(ougi|example|nexus)(\s*control)?(\s*panel)?$/i.test(n)) return true;
+  if (n.includes('control panel') || n.includes('control-panel')) return true;
+  // Channel whose only word is ougi after stripping emoji/punctuation
+  const stripped = n
+    .replace(/[\p{Extended_Pictographic}\p{Emoji_Presentation}]/gu, '')
+    .replace(/[・｜|★*\-_.\s]+/g, '')
+    .trim();
+  return stripped === 'ougi' || stripped === 'example' || stripped === 'nexus';
+}
+
+function messageLooksLikeControlPanel(msg) {
+  if (!msg?.components?.length) return false;
+  for (const row of msg.components) {
+    for (const c of row.components || []) {
+      const id = String(c.customId || '');
+      if (id.startsWith('panel:') || id.startsWith('panelnav:')) return true;
+    }
+  }
+  return false;
+}
+
+/** Delete every other control-panel message in the channel so only one remains. */
+async function purgeExtraPanelMessages(channel, keepMessageId, clientUserId) {
+  if (!channel?.isTextBased?.()) return;
+  const fetched = await channel.messages.fetch({ limit: 50 }).catch(() => null);
+  if (!fetched?.size) return;
+  for (const msg of fetched.values()) {
+    if (keepMessageId && msg.id === keepMessageId) continue;
+    if (msg.author?.id !== clientUserId) continue;
+    if (!messageLooksLikeControlPanel(msg)) continue;
+    await msg.delete().catch(() => {});
+  }
 }
 
 /** Keep exactly one Ougi panel category + channel; delete extras. */
@@ -294,7 +320,9 @@ async function createPanel(guild, client, opts = {}) {
       try {
         await existing.edit(panelPayload);
         cfg.panelChannelId = channel.id;
+        cfg.panelMessageId = existing.id;
         saveGuild(guild.id, cfg);
+        await purgeExtraPanelMessages(channel, existing.id, client.user.id);
         if (!opts.skipThemeRoles) {
           try {
             const { syncThemeAdminRoles } = require('../features/theme-roles');
@@ -311,6 +339,8 @@ async function createPanel(guild, client, opts = {}) {
     }
   }
 
+  // Remove any prior panel message(s) before posting the single replacement
+  await purgeExtraPanelMessages(channel, null, client.user.id);
   if (cfg.panelMessageId) {
     const old = await channel.messages.fetch(cfg.panelMessageId).catch(() => null);
     if (old) await old.delete().catch(() => {});
@@ -320,6 +350,7 @@ async function createPanel(guild, client, opts = {}) {
   cfg.panelChannelId = channel.id;
   cfg.panelMessageId = msg.id;
   saveGuild(guild.id, cfg);
+  await purgeExtraPanelMessages(channel, msg.id, client.user.id);
   if (!opts.skipThemeRoles) {
     try {
       const { syncThemeAdminRoles } = require('../features/theme-roles');
